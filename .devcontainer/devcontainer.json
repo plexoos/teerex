@@ -1,0 +1,19 @@
+{
+  "name": "teerex",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": ".."
+  },
+  "remoteEnv": {
+    "CODEX_HOME": "${containerWorkspaceFolder}/.codex"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "openai.chatgpt",
+        "ms-python.python",
+        "ms-toolsai.jupyter"
+      ]
+    }
+  }
+}

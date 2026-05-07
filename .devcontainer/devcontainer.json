@@ -4,6 +4,9 @@
     "dockerfile": "../Dockerfile",
     "context": ".."
   },
+  "runArgs": [
+    "--shm-size=10.24gb"
+  ],
   "remoteEnv": {
     "CODEX_HOME": "${containerWorkspaceFolder}/.codex"
   },

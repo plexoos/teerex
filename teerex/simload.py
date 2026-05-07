@@ -6,20 +6,20 @@ import math
 import os
 import random
 import time
+
 from dataclasses import dataclass, asdict
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 import ray
+import torch
 
 
 @dataclass
 class EventSpec:
     event_id: int
-    arrival_time_s: float
-
-    total_work_s: float
+    event_size_s: float
     cpu_fraction: float
     gpu_fraction: float
 
@@ -37,26 +37,18 @@ class EventSpec:
     num_gpus: float
 
 
-def sample_event(
-    event_id: int,
-    arrival_time_s: float,
-    params: Dict[str, Any],
-) -> EventSpec:
+def sample_event(event_id: int, params: Dict[str, Any]) -> EventSpec:
     """
-    Generate one synthetic Geant4-like event.
+    Generate one synthetic Geant4-like event record.
 
-    The CPU/GPU split is randomized using a Beta distribution.
+    The event size is the total synthetic processing payload. The CPU/GPU split
+    is then sampled independently with a Beta distribution.
     """
 
-    rng = random.Random(params.get("seed", 12345) + event_id)
+    seed = params.get("seed", 12345)
+    rng = random.Random(seed + event_id)
 
-    mean_total_work_s = float(params.get("mean_total_work_s", 3.0))
-    total_work_jitter = float(params.get("total_work_jitter", 0.5))
-
-    # Lognormal gives positive, event-to-event variable work.
-    sigma = total_work_jitter
-    mu = math.log(mean_total_work_s) - 0.5 * sigma * sigma
-    total_work_s = rng.lognormvariate(mu, sigma)
+    event_size_s = sample_event_size_s(rng, params)
 
     beta_alpha = float(params.get("cpu_fraction_beta_alpha", 4.0))
     beta_beta = float(params.get("cpu_fraction_beta_beta", 4.0))
@@ -64,38 +56,30 @@ def sample_event(
     cpu_fraction = rng.betavariate(beta_alpha, beta_beta)
     gpu_fraction = 1.0 - cpu_fraction
 
-    cpu_work_s = total_work_s * cpu_fraction
-    gpu_work_s = total_work_s * gpu_fraction
+    cpu_work_s = event_size_s * cpu_fraction
+    gpu_work_s = event_size_s * gpu_fraction
 
     # Matrix sizes loosely correlated with work.
     cpu_matrix_base = int(params.get("cpu_matrix_base", 512))
     gpu_matrix_base = int(params.get("gpu_matrix_base", 2048))
 
-    cpu_matrix_size = max(
-        128,
-        int(cpu_matrix_base * math.sqrt(max(cpu_work_s, 0.05))),
-    )
-    gpu_matrix_size = max(
-        256,
-        int(gpu_matrix_base * math.sqrt(max(gpu_work_s, 0.05))),
-    )
+    cpu_matrix_size = max(128, int(cpu_matrix_base * math.sqrt(max(cpu_work_s, 0.05))))
+    gpu_matrix_size = max(256, int(gpu_matrix_base * math.sqrt(max(gpu_work_s, 0.05))))
 
     # Optional memory and transfer sizes correlated with GPU fraction.
     gpu_memory_base_mb = int(params.get("gpu_memory_base_mb", 256))
     gpu_memory_jitter_mb = int(params.get("gpu_memory_jitter_mb", 256))
+    mean_event_size_s = float(params.get("mean_event_size_s", 3.0))
+    size_scale = event_size_s / max(mean_event_size_s, 1.0e-9)
 
-    gpu_memory_mb = int(
-        gpu_memory_base_mb * gpu_fraction
-        + rng.uniform(0, gpu_memory_jitter_mb) * gpu_fraction
-    )
+    gpu_memory_mb = int( ( gpu_memory_base_mb + rng.uniform(0, gpu_memory_jitter_mb) ) * gpu_fraction * size_scale )
 
-    h2d_mb = int(params.get("h2d_base_mb", 64) * gpu_fraction)
-    d2h_mb = int(params.get("d2h_base_mb", 16) * gpu_fraction)
+    h2d_mb = int(params.get("h2d_base_mb", 64) * gpu_fraction * size_scale)
+    d2h_mb = int(params.get("d2h_base_mb", 16) * gpu_fraction * size_scale)
 
     return EventSpec(
         event_id=event_id,
-        arrival_time_s=arrival_time_s,
-        total_work_s=total_work_s,
+        event_size_s=event_size_s,
         cpu_fraction=cpu_fraction,
         gpu_fraction=gpu_fraction,
         cpu_work_s=cpu_work_s,
@@ -110,8 +94,36 @@ def sample_event(
     )
 
 
+def sample_event_size_s(rng: random.Random, params: Dict[str, Any]) -> float:
+    distribution = str(params.get("event_size_distribution", "gaussian")).lower()
+    mean_event_size_s = float(params.get("mean_event_size_s", 3.0))
+    event_size_spread_s = float(params.get("event_size_spread_s", 0.6))
+    min_event_size_s = float(params.get("min_event_size_s", 0.05))
+
+    if distribution == "fixed":
+        event_size_s = mean_event_size_s
+    elif distribution in {"uniform", "flat"}:
+        event_size_s = rng.uniform(
+            mean_event_size_s - event_size_spread_s,
+            mean_event_size_s + event_size_spread_s,
+        )
+    elif distribution in {"gaussian", "normal"}:
+        event_size_s = rng.gauss(mean_event_size_s, event_size_spread_s)
+    else:
+        raise ValueError(
+            "event_size_distribution must be 'fixed', 'uniform', or 'gaussian' "
+            f"(got {distribution!r})"
+        )
+
+    return max(min_event_size_s, event_size_s)
+
+
 @ray.remote
 def cpu_stage(event: Dict[str, Any]) -> Dict[str, Any]:
+    return _run_cpu_stage(event)
+
+
+def _run_cpu_stage(event: Dict[str, Any]) -> Dict[str, Any]:
     """
     Synthetic CPU stage.
 
@@ -164,7 +176,7 @@ def cpu_stage(event: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @ray.remote
-def gpu_stage(event: Dict[str, Any], cpu_result: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def gpu_stage(event: Dict[str, Any]) -> Dict[str, Any]:
     """
     Synthetic GPU stage.
 
@@ -174,11 +186,10 @@ def gpu_stage(event: Dict[str, Any], cpu_result: Optional[Dict[str, Any]] = None
       - batched hit processing
       - detector response kernels
 
-    The cpu_result argument creates a dependency:
-    GPU work for this event cannot start until the CPU stage has completed.
+    The simulation submits this task only after the single CPU manager has
+    completed CPU work for the event. In async mode, GPU work from this event
+    may overlap CPU work from later events.
     """
-
-    import torch
 
     start = time.perf_counter()
 
@@ -260,11 +271,11 @@ def gpu_stage(event: Dict[str, Any], cpu_result: Optional[Dict[str, Any]] = None
     }
 
 
-@ray.remote
-def event_reduce_stage(
+def _merge_event_results(
     event: Dict[str, Any],
     cpu_result: Dict[str, Any],
     gpu_result: Dict[str, Any],
+    gpu_async: bool,
 ) -> Dict[str, Any]:
     """
     Lightweight event-level reduction.
@@ -281,103 +292,87 @@ def event_reduce_stage(
 
     return {
         "event_id": event["event_id"],
-        "stage": "reduce",
-        "start_time": start,
+        "stage": "event",
+        "gpu_async": gpu_async,
+        "start_time": cpu_result["start_time"],
         "end_time": end,
-        "runtime_s": end - start,
+        "runtime_s": end - cpu_result["start_time"],
+        "cpu_start_time": cpu_result["start_time"],
+        "cpu_end_time": cpu_result["end_time"],
         "cpu_runtime_s": cpu_result["runtime_s"],
+        "gpu_start_time": gpu_result["start_time"],
+        "gpu_end_time": gpu_result["end_time"],
         "gpu_runtime_s": gpu_result["runtime_s"],
+        "merge_start_time": start,
+        "merge_end_time": end,
+        "merge_runtime_s": end - start,
     }
+
+
+def _submit_gpu_stage(event: Dict[str, Any], params: Dict[str, Any]) -> ray.ObjectRef:
+    return gpu_stage.options(
+        num_cpus=float(params.get("num_cpus_per_gpu_task", 0.25)),
+        num_gpus=float(event["num_gpus"]),
+    ).remote(event)
+
+
+def _gpu_async_enabled(params: Dict[str, Any]) -> bool:
+    value = params.get("gpu_async", False)
+
+    if isinstance(value, bool):
+        return value
+    else:
+        raise ValueError(f"gpu_async must be a boolean value (got {value!r})")
 
 
 def generate_events(params: Dict[str, Any]) -> List[EventSpec]:
     n_events = int(params.get("n_events", 20))
-    arrival_mode = params.get("arrival_mode", "batch")
-
-    events = []
-
-    if arrival_mode == "batch":
-        for event_id in range(n_events):
-            events.append(sample_event(event_id, 0.0, params))
-
-    elif arrival_mode == "poisson":
-        mean_interarrival_s = float(params.get("mean_interarrival_s", 0.5))
-        rng = random.Random(params.get("seed", 12345))
-
-        t = 0.0
-        for event_id in range(n_events):
-            t += rng.expovariate(1.0 / mean_interarrival_s)
-            events.append(sample_event(event_id, t, params))
-
-    elif arrival_mode == "fixed":
-        interarrival_s = float(params.get("interarrival_s", 0.5))
-
-        for event_id in range(n_events):
-            events.append(sample_event(event_id, event_id * interarrival_s, params))
-
-    else:
-        raise ValueError(f"Unknown arrival_mode: {arrival_mode}")
-
-    return events
+    return [sample_event(event_id, params) for event_id in range(n_events)]
 
 
 def run_simulation(params: Dict[str, Any]) -> pd.DataFrame:
     events = generate_events(params)
+    gpu_async = _gpu_async_enabled(params)
 
     t0 = time.perf_counter()
 
-    result_refs = []
+    reduce_results = []
     event_records = []
+    pending_gpu = []
 
     for spec in events:
-        target_submit_time = t0 + spec.arrival_time_s
-        now = time.perf_counter()
-
-        if target_submit_time > now:
-            time.sleep(target_submit_time - now)
-
         event = asdict(spec)
         event["reduce_work_s"] = float(params.get("reduce_work_s", 0.01))
 
-        submitted_at = time.perf_counter()
+        cpu_result = _run_cpu_stage(event)
+        gpu_ref = _submit_gpu_stage(event, params)
 
-        cpu_ref = cpu_stage.options(
-            num_cpus=spec.num_cpus,
-            num_gpus=0,
-        ).remote(event)
-
-        # GPU stage depends on CPU stage by default.
-        # This resembles Geant4 CPU event preparation followed by GPU optical work.
-        if bool(params.get("gpu_depends_on_cpu", True)):
-            gpu_ref = gpu_stage.options(
-                num_cpus=float(params.get("num_cpus_per_gpu_task", 0.25)),
-                num_gpus=spec.num_gpus,
-            ).remote(event, cpu_ref)
+        if gpu_async:
+            pending_gpu.append(
+                {
+                    "event": event,
+                    "cpu_result": cpu_result,
+                    "gpu_ref": gpu_ref,
+                }
+            )
         else:
-            gpu_ref = gpu_stage.options(
-                num_cpus=float(params.get("num_cpus_per_gpu_task", 0.25)),
-                num_gpus=spec.num_gpus,
-            ).remote(event, None)
-
-        reduce_ref = event_reduce_stage.options(
-            num_cpus=float(params.get("num_cpus_per_reduce_task", 0.1)),
-            num_gpus=0,
-        ).remote(event, cpu_ref, gpu_ref)
-
-        result_refs.append(reduce_ref)
+            gpu_result = ray.get(gpu_ref)
+            reduce_results.append(
+                _merge_event_results(event, cpu_result, gpu_result, gpu_async)
+            )
 
         event_records.append(
             {
                 "event_id": spec.event_id,
-                "submitted_at": submitted_at,
-                "submit_offset_s": submitted_at - t0,
                 **asdict(spec),
             }
         )
 
         print(
-            f"submitted event={spec.event_id:04d} "
-            f"at={submitted_at - t0:8.3f}s "
+            f"processed CPU event={spec.event_id:04d} "
+            f"at={cpu_result['start_time'] - t0:8.3f}s "
+            f"async={str(gpu_async):5s} "
+            f"size={spec.event_size_s:6.3f}s "
             f"cpu_frac={spec.cpu_fraction:5.2f} "
             f"gpu_frac={spec.gpu_fraction:5.2f} "
             f"cpu_work={spec.cpu_work_s:6.3f}s "
@@ -386,16 +381,29 @@ def run_simulation(params: Dict[str, Any]) -> pd.DataFrame:
             flush=True,
         )
 
-    reduce_results = ray.get(result_refs)
+    while pending_gpu:
+        refs = [item["gpu_ref"] for item in pending_gpu]
+        ready_refs, _ = ray.wait(refs, num_returns=1)
+        ready_ref = ready_refs[0]
+        ready_index = next(i for i, item in enumerate(pending_gpu) if item["gpu_ref"] == ready_ref)
+        ready_item = pending_gpu.pop(ready_index)
+        gpu_result = ray.get(ready_ref)
+        reduce_results.append(
+            _merge_event_results(
+                ready_item["event"],
+                ready_item["cpu_result"],
+                gpu_result,
+                gpu_async,
+            )
+        )
 
     events_df = pd.DataFrame(event_records)
     results_df = pd.DataFrame(reduce_results)
 
     df = events_df.merge(results_df, on="event_id", how="left")
 
+    df["start_offset_s"] = df["start_time"] - t0
     df["end_offset_s"] = df["end_time"] - t0
-    df["event_latency_s"] = df["end_time"] - df["submitted_at"]
-    df["queue_plus_runtime_s"] = df["event_latency_s"]
 
     return df.sort_values("event_id")
 
@@ -405,11 +413,12 @@ def default_params() -> Dict[str, Any]:
         "seed": 12345,
 
         "n_events": 20,
-        "arrival_mode": "fixed",
-        "interarrival_s": 0.25,
-
-        "mean_total_work_s": 3.0,
-        "total_work_jitter": 0.6,
+        # Event size is the total synthetic event payload in seconds before
+        # splitting it into CPU and GPU work.
+        "event_size_distribution": "gaussian",
+        "mean_event_size_s": 3.0,
+        "event_size_spread_s": 0.6,
+        "min_event_size_s": 0.05,
 
         # Beta(alpha, beta) for CPU fraction.
         # alpha=beta gives balanced events.
@@ -429,9 +438,8 @@ def default_params() -> Dict[str, Any]:
         "num_cpus_per_event": 1.0,
         "num_gpus_per_event": 1.0,
         "num_cpus_per_gpu_task": 0.25,
-        "num_cpus_per_reduce_task": 0.1,
 
-        "gpu_depends_on_cpu": True,
+        "gpu_async": False,
         "reduce_work_s": 0.01,
     }
 
@@ -489,6 +497,7 @@ def main() -> None:
     out_path = resolve_output_path(args.config, args.out, args.out_dir)
 
     os.environ.setdefault("RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO", "0")
+
     ray.init(
         num_cpus=args.num_cpus,
         num_gpus=args.num_gpus,
@@ -503,10 +512,14 @@ def main() -> None:
 
     cols = [
         "event_id",
-        "submit_offset_s",
+        "gpu_async",
+        "start_offset_s",
         "end_offset_s",
-        "event_latency_s",
-        "total_work_s",
+        "runtime_s",
+        "event_size_s",
+        "cpu_runtime_s",
+        "gpu_runtime_s",
+        "merge_runtime_s",
         "cpu_fraction",
         "gpu_fraction",
         "cpu_work_s",

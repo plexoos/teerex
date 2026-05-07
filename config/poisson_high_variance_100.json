@@ -1,0 +1,16 @@
+{
+  "n_events": 100,
+  "arrival_mode": "poisson",
+  "mean_interarrival_s": 0.15,
+
+  "mean_total_work_s": 2.5,
+  "total_work_jitter": 1.0,
+
+  "cpu_fraction_beta_alpha": 0.8,
+  "cpu_fraction_beta_beta": 0.8,
+
+  "gpu_memory_base_mb": 256,
+  "gpu_memory_jitter_mb": 2048,
+
+  "gpu_depends_on_cpu": true
+}

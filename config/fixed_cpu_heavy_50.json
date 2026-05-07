@@ -1,0 +1,16 @@
+{
+  "n_events": 50,
+  "arrival_mode": "fixed",
+  "interarrival_s": 0.2,
+
+  "mean_total_work_s": 3.0,
+  "total_work_jitter": 0.5,
+
+  "cpu_fraction_beta_alpha": 8.0,
+  "cpu_fraction_beta_beta": 2.0,
+
+  "gpu_memory_base_mb": 128,
+  "gpu_memory_jitter_mb": 256,
+
+  "gpu_depends_on_cpu": true
+}

@@ -3,21 +3,6 @@
 """
 Analyze and compare multiple Simload CSV output files.
 
-Example usage:
-
-    python analyze_simload_csv.py results/*.csv --outdir plots
-
-    python analyze_simload_csv.py run_cpu_heavy.csv run_gpu_heavy.csv run_balanced.csv \
-        --outdir plots \
-        --time-column time_s
-
-Outputs:
-
-    plots/combined.csv
-    plots/summary_by_run.csv
-    plots/timeseries_*.png
-    plots/boxplot_*.png
-    plots/throughput_over_time.png   if a task/event completion column is detected
 """
 
 from __future__ import annotations
@@ -97,25 +82,6 @@ def infer_column(columns: Iterable[str], candidates: list[str]) -> str | None:
     return None
 
 
-def infer_metric_columns(df: pd.DataFrame) -> list[str]:
-    numeric_cols = [
-        c for c in df.columns
-        if pd.api.types.is_numeric_dtype(df[c])
-    ]
-
-    metrics: list[str] = []
-
-    for col in numeric_cols:
-        col_l = col.lower()
-        if any(re.search(pattern, col_l) for pattern in METRIC_PATTERNS):
-            metrics.append(col)
-
-    exclude = {"event_id", "task_id", "job_id", "id", "run_index"}
-    metrics = [c for c in metrics if c.lower() not in exclude]
-
-    return sorted(set(metrics))
-
-
 def read_one_csv(path: Path, run_label: str | None = None) -> pd.DataFrame:
     df = pd.read_csv(path)
 
@@ -178,32 +144,6 @@ def save_summary(df: pd.DataFrame, metrics: list[str], outdir: Path) -> pd.DataF
     summary.to_csv(outdir / "summary_by_run.csv", index=False)
 
     return summary
-
-
-def plot_timeseries(
-    df: pd.DataFrame,
-    time_col: str,
-    metric: str,
-    outdir: Path,
-) -> None:
-    fig, ax = plt.subplots(figsize=(10, 5))
-
-    for run, g in df.groupby("run", dropna=False):
-        g = g[[time_col, metric]].dropna().sort_values(time_col)
-        if g.empty:
-            continue
-
-        ax.plot(g[time_col], g[metric], label=str(run), linewidth=1.5)
-
-    ax.set_title(f"{metric} over time")
-    ax.set_xlabel(time_col)
-    ax.set_ylabel(metric)
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-
-    fig.tight_layout()
-    fig.savefig(outdir / f"timeseries_{metric}.png", dpi=160)
-    plt.close(fig)
 
 
 def plot_boxplot(
@@ -275,110 +215,3 @@ def plot_completion_throughput(
     fig.tight_layout()
     fig.savefig(outdir / "throughput_over_time.png", dpi=160)
     plt.close(fig)
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "csv_files",
-        nargs="+",
-        help="CSV files or glob-expanded list of CSV files.",
-    )
-    parser.add_argument(
-        "--outdir",
-        default="simload_analysis",
-        help="Output directory for combined CSV, summaries, and plots.",
-    )
-    parser.add_argument(
-        "--time-column",
-        default=None,
-        help="Optional explicit time column name.",
-    )
-    parser.add_argument(
-        "--metrics",
-        nargs="*",
-        default=None,
-        help="Optional explicit metric columns to plot.",
-    )
-    parser.add_argument(
-        "--bin-width-s",
-        type=float,
-        default=1.0,
-        help="Bin width for throughput plot.",
-    )
-
-    args = parser.parse_args()
-
-    paths = [Path(p) for p in args.csv_files]
-    outdir = Path(args.outdir)
-    outdir.mkdir(parents=True, exist_ok=True)
-
-    df = read_many_csv(paths)
-
-    df.to_csv(outdir / "combined.csv", index=False)
-
-    if args.time_column is not None:
-        time_col = normalize_column_name(args.time_column)
-        if time_col not in df.columns:
-            raise ValueError(
-                f"Requested time column '{time_col}' not found. "
-                f"Available columns: {list(df.columns)}"
-            )
-    else:
-        time_col = infer_column(df.columns, TIME_CANDIDATES)
-
-    if args.metrics is not None and len(args.metrics) > 0:
-        metrics = [normalize_column_name(c) for c in args.metrics]
-        missing = [c for c in metrics if c not in df.columns]
-        if missing:
-            raise ValueError(
-                f"Requested metric columns not found: {missing}. "
-                f"Available columns: {list(df.columns)}"
-            )
-    else:
-        metrics = infer_metric_columns(df)
-
-    summary = save_summary(df, metrics, outdir)
-
-    print("\nLoaded files:")
-    for p in paths:
-        print(f"  {p}")
-
-    print(f"\nRows: {len(df)}")
-    print(f"Runs: {df['run'].nunique()}")
-    print(f"Output directory: {outdir}")
-
-    print("\nDetected columns:")
-    print(f"  time column: {time_col}")
-    print(f"  metrics: {metrics}")
-
-    print("\nSummary:")
-    print(summary.to_string(index=False))
-
-    if time_col is not None:
-        for metric in metrics:
-            if metric == time_col:
-                continue
-            plot_timeseries(df, time_col, metric, outdir)
-
-    for metric in metrics:
-        plot_boxplot(df, metric, outdir)
-
-    id_col = infer_column(df.columns, EVENT_ID_CANDIDATES)
-    if time_col is not None and id_col is not None:
-        plot_completion_throughput(
-            df=df,
-            time_col=time_col,
-            id_col=id_col,
-            outdir=outdir,
-            bin_width_s=args.bin_width_s,
-        )
-
-    print("\nWrote:")
-    print(f"  {outdir / 'combined.csv'}")
-    print(f"  {outdir / 'summary_by_run.csv'}")
-    print(f"  {outdir}/*.png")
-
-
-if __name__ == "__main__":
-    main()

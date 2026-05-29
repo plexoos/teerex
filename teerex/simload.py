@@ -436,12 +436,47 @@ def default_params() -> Dict[str, Any]:
     }
 
 
+def resolve_output_path(
+    config_path: Optional[str],
+    out_path: Optional[str],
+    out_dir: Optional[str],
+) -> str:
+    if out_path is not None:
+        return out_path
+
+    if config_path is None:
+        filename = "default_params.csv"
+    else:
+        config_name = os.path.splitext(os.path.basename(config_path))[0]
+        filename = f"{config_name}.csv"
+
+    if out_dir is None:
+        return filename
+
+    return os.path.join(out_dir, filename)
+
+
+def ensure_output_directory(out_path: str) -> None:
+    out_dir = os.path.dirname(out_path)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default=None, help="JSON parameter file")
     parser.add_argument("--num-cpus", type=int, default=None)
     parser.add_argument("--num-gpus", type=float, default=None)
-    parser.add_argument("--out", default="out_g4_ray.csv")
+    parser.add_argument(
+        "--out",
+        default=None,
+        help=("full output CSV path; overrides --out-dir and defaults to <config-name>.csv with --config, otherwise default_params.csv"),
+    )
+    parser.add_argument(
+        "--out-dir",
+        default="simload_runs",
+        help="directory for the generated CSV filename when --out is not set",
+    )
     args = parser.parse_args()
 
     params = default_params()
@@ -450,6 +485,8 @@ def main() -> None:
         with open(args.config, "r", encoding="utf-8") as f:
             user_params = json.load(f)
         params.update(user_params)
+
+    out_path = resolve_output_path(args.config, args.out, args.out_dir)
 
     os.environ.setdefault("RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO", "0")
     ray.init(
@@ -482,8 +519,9 @@ def main() -> None:
     print()
     print(df[cols].to_string(index=False))
 
-    df.to_csv(args.out, index=False)
-    print(f"\nWrote {args.out}")
+    ensure_output_directory(out_path)
+    df.to_csv(out_path, index=False)
+    print(f"\nWrote {out_path}")
 
     ray.shutdown()
 

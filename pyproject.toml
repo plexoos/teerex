@@ -7,9 +7,11 @@ requires-python = ">=3.11"
 dependencies = [
     "ipykernel>=7.2.0",
     "jupyterlab>=4.5.6",
+    "jupyterlab-vim>=4.1.4",
     "matplotlib>=3.10.9",
     "numpy>=2.0.0",
     "pandas>=3.0",
+    "pip>=26.1.1",
     "ray>=2.55.1",
     "torch>=2.11.0",
 ]

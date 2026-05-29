@@ -1,10 +1,10 @@
 {
   "n_events": 100,
-  "arrival_mode": "poisson",
-  "mean_interarrival_s": 0.15,
 
-  "mean_total_work_s": 2.5,
-  "total_work_jitter": 1.0,
+  "event_size_distribution": "gaussian",
+  "mean_event_size_s": 2.5,
+  "event_size_spread_s": 1.0,
+  "min_event_size_s": 0.05,
 
   "cpu_fraction_beta_alpha": 0.8,
   "cpu_fraction_beta_beta": 0.8,
@@ -12,5 +12,5 @@
   "gpu_memory_base_mb": 256,
   "gpu_memory_jitter_mb": 2048,
 
-  "gpu_depends_on_cpu": true
+  "gpu_async": false
 }

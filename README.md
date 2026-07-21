@@ -346,18 +346,19 @@ To make every event the same nominal size, set `event_size_distribution` to `"fi
 ## Command-line reference
 
 ```text
-simload [--config FILE] [--mode MODE] [--out FILE] [--out-dir DIR]
-        [--num-cpus N] [--num-gpus N]
+simload [-c FILE | --config FILE] [-m MODE | --mode MODE]
+        [-o FILE | --out FILE] [-d DIR | --out-dir DIR]
+        [-n N | --num-cpus N] [-g N | --num-gpus N]
 ```
 
 | Option | Behavior |
 | --- | --- |
-| `--config FILE` | Load a JSON object and apply it over the built-in defaults. |
-| `--mode MODE` | Override the configuration with `blocking`, `event_barrier`, or `async`. |
-| `--out FILE` | Write to this exact CSV path. Parent directories are created. |
-| `--out-dir DIR` | Output directory when `--out` is absent; defaults to `simload_runs`. |
-| `--num-cpus N` | Accepted for compatibility with the Ray program; has no scheduling effect locally. |
-| `--num-gpus N` | Accepted for compatibility with the Ray program; local mode still uses the current CUDA device. |
+| `-c FILE`, `--config FILE` | Load a JSON object and apply it over the built-in defaults. |
+| `-m MODE`, `--mode MODE` | Override the configuration with `blocking`, `event_barrier`, or `async`. |
+| `-o FILE`, `--out FILE` | Write to this exact CSV path. Parent directories are created. |
+| `-d DIR`, `--out-dir DIR` | Output directory when `--out` is absent; defaults to `simload_runs`. |
+| `-n N`, `--num-cpus N` | Accepted for compatibility with the Ray program; has no scheduling effect locally. |
+| `-g N`, `--num-gpus N` | Accepted for compatibility with the Ray program; local mode still uses the current CUDA device. |
 
 Without `--out`, the filename is derived from the config stem:
 

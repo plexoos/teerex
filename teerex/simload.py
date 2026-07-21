@@ -644,31 +644,36 @@ def ensure_output_directory(out_path: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default=None, help="JSON parameter file")
+    parser.add_argument("-c", "--config", default=None, help="JSON parameter file")
     parser.add_argument(
+        "-m",
         "--mode",
         choices=["blocking", "event_barrier", "async"],
         default=None,
         help="override gpu_mode from config",
     )
     parser.add_argument(
+        "-n",
         "--num-cpus",
         type=int,
         default=None,
         help="accepted for CLI compatibility; local mode does not create a CPU resource pool",
     )
     parser.add_argument(
+        "-g",
         "--num-gpus",
         type=float,
         default=None,
         help="accepted for CLI compatibility; local mode uses the current CUDA device",
     )
     parser.add_argument(
+        "-o",
         "--out",
         default=None,
         help=("full output CSV path; overrides --out-dir and defaults to <config-name>.csv with --config, otherwise default_params.csv"),
     )
     parser.add_argument(
+        "-d",
         "--out-dir",
         default="simload_runs",
         help="directory for the generated CSV filename when --out is not set",

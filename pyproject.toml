@@ -14,7 +14,7 @@ dependencies = [
     "pandas>=3.0",
     "pip>=26.1.1",
     "ray>=2.55.1",
-    "torch>=2.11.0",
+    "torch>=2.13.0",
 ]
 
 [project.scripts]

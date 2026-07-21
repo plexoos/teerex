@@ -29,13 +29,6 @@ TIME_CANDIDATES = [
     "end_offset_s",
 ]
 
-RUN_ID_CANDIDATES = [
-    "run",
-    "run_id",
-    "scenario",
-    "scenario_id",
-]
-
 EVENT_ID_CANDIDATES = [
     "event_id",
     "task_id",
@@ -82,7 +75,7 @@ def infer_column(columns: Iterable[str], candidates: list[str]) -> str | None:
     return None
 
 
-def read_one_csv(path: Path, run_label: str | None = None) -> pd.DataFrame:
+def read_one_csv(path: Path, scenario_label: str | None = None) -> pd.DataFrame:
     df = pd.read_csv(path)
 
     original_cols = list(df.columns)
@@ -94,13 +87,7 @@ def read_one_csv(path: Path, run_label: str | None = None) -> pd.DataFrame:
             f"Original columns were: {original_cols}"
         )
 
-    label = run_label if run_label is not None else path.stem
-
-    existing_run_col = infer_column(df.columns, RUN_ID_CANDIDATES)
-    if existing_run_col is None:
-        df["run"] = label
-    else:
-        df["run"] = df[existing_run_col].astype(str)
+    df["scenario"] = scenario_label if scenario_label is not None else path.stem
 
     df["source_file"] = str(path)
 
@@ -127,12 +114,14 @@ def read_many_csv(paths: list[Path]) -> pd.DataFrame:
 
 def save_summary(df: pd.DataFrame, metrics: list[str], outdir: Path) -> pd.DataFrame:
     if not metrics:
-        summary = df.groupby("run", dropna=False).size().rename("rows").reset_index()
-        summary.to_csv(outdir / "summary_by_run.csv", index=False)
+        summary = (
+            df.groupby("scenario", dropna=False).size().rename("rows").reset_index()
+        )
+        summary.to_csv(outdir / "summary_by_scenario.csv", index=False)
         return summary
 
     summary = (
-        df.groupby("run", dropna=False)[metrics]
+        df.groupby("scenario", dropna=False)[metrics]
         .agg(["count", "mean", "std", "min", "median", "max"])
     )
 
@@ -141,7 +130,7 @@ def save_summary(df: pd.DataFrame, metrics: list[str], outdir: Path) -> pd.DataF
     ]
 
     summary = summary.reset_index()
-    summary.to_csv(outdir / "summary_by_run.csv", index=False)
+    summary.to_csv(outdir / "summary_by_scenario.csv", index=False)
 
     return summary
 
@@ -154,12 +143,12 @@ def plot_boxplot(
     data = []
     labels = []
 
-    for run, g in df.groupby("run", dropna=False):
+    for scenario, g in df.groupby("scenario", dropna=False):
         values = g[metric].dropna()
         if values.empty:
             continue
         data.append(values)
-        labels.append(str(run))
+        labels.append(str(scenario))
 
     if not data:
         return
@@ -167,8 +156,8 @@ def plot_boxplot(
     fig, ax = plt.subplots(figsize=(10, 5))
 
     ax.boxplot(data, labels=labels, showfliers=False)
-    ax.set_title(f"{metric} distribution by run")
-    ax.set_xlabel("run")
+    ax.set_title(f"{metric} distribution by scenario")
+    ax.set_xlabel("scenario")
     ax.set_ylabel(metric)
     ax.grid(True, axis="y", alpha=0.3)
 
@@ -185,7 +174,7 @@ def plot_completion_throughput(
     outdir: Path,
     bin_width_s: float,
 ) -> None:
-    tmp = df[[time_col, id_col, "run"]].dropna().copy()
+    tmp = df[[time_col, id_col, "scenario"]].dropna().copy()
 
     if tmp.empty:
         return
@@ -193,7 +182,7 @@ def plot_completion_throughput(
     tmp["time_bin"] = (tmp[time_col] // bin_width_s) * bin_width_s
 
     throughput = (
-        tmp.groupby(["run", "time_bin"], dropna=False)[id_col]
+        tmp.groupby(["scenario", "time_bin"], dropna=False)[id_col]
         .nunique()
         .reset_index(name="completed")
     )
@@ -202,9 +191,14 @@ def plot_completion_throughput(
 
     fig, ax = plt.subplots(figsize=(10, 5))
 
-    for run, g in throughput.groupby("run", dropna=False):
+    for scenario, g in throughput.groupby("scenario", dropna=False):
         g = g.sort_values("time_bin")
-        ax.plot(g["time_bin"], g["throughput_per_s"], label=str(run), linewidth=1.5)
+        ax.plot(
+            g["time_bin"],
+            g["throughput_per_s"],
+            label=str(scenario),
+            linewidth=1.5,
+        )
 
     ax.set_title("Completion throughput over time")
     ax.set_xlabel(time_col)

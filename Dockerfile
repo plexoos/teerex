@@ -33,3 +33,13 @@ WORKDIR $PROJECT_HOME
 COPY pyproject.toml uv.lock $PROJECT_HOME/
 COPY teerex $PROJECT_HOME/teerex
 RUN uv sync
+
+ARG DEV_USER=dev
+
+RUN if ! id -u "${DEV_USER}" >/dev/null 2>&1; then \
+      useradd --create-home --user-group --shell /bin/bash "${DEV_USER}"; \
+    fi
+
+ENV HOME=/home/${DEV_USER}
+
+USER ${DEV_USER}

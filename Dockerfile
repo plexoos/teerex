@@ -12,6 +12,12 @@ RUN apt update \
  && apt clean \
  && rm -rf /var/lib/apt/lists/*
 
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+ && apt install -y nodejs \
+ && npm install -g @openai/codex@0.145.0 \
+ && apt clean \
+ && rm -rf /var/lib/apt/lists/*
+
 RUN apt update && apt install -y vim
 
 RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh

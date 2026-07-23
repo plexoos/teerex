@@ -73,33 +73,125 @@ Only payloads with verified alternative implementations enter the learned routin
 
 ### 3.2 Bayesian prediction targets
 
-For an eligible payload basket \(i\), resource \(r\), and decision-time context \(x_i\), maintain
-posterior predictive distributions for:
+Let $i$ identify a candidate basket, $d$ identify a scheduling decision made at wall-clock time
+$\tau_d$, and $r$ identify a candidate execution resource. Let $b_i$ be the basket's immutable
+descriptor and $s_{\tau_d}$ the fresh `ResourceSnapshot`. The **decision-time context**
 
-\[
-p(T_{\mathrm{cpu},i} \mid x_i, D_t)
-\]
+$$
+x_{i,r}^{(d)} = g(b_i, r, s_{\tau_d})
+$$
 
-\[
-p(T_{\mathrm{gpu-compute},i,r} \mid x_i, D_t)
-\]
+is the frozen, target-specific feature vector available before an action is selected. It can contain
+the workload kind, item count, byte volumes, bounded complexity and batch features, event age, and
+applicable active-load covariates. It must not contain the selected action's outcome or telemetry
+observed later. The complete resource snapshot remains available to the controller; in particular,
+queued work is used to derive queue delay rather than being learned as an intrinsic basket property.
 
-\[
-p(T_{\mathrm{h2d},i,r}, T_{\mathrm{d2h},i,r} \mid x_i, D_t)
-\]
+Let
 
-\[
-p(M_{\mathrm{gpu-peak},i,r} \mid x_i, D_t)
-\]
+$$
+D_{\tau_d}
+=
+\left\{
+\left(x_e, a_e, o_e\right)
+:
+o_e\text{ was validated and incorporated by }\operatorname{observe}\text{ before }\tau_d
+\right\}
+$$
 
-These distributions provide:
+be the accumulated real-job evidence available to the model at that decision. Here $a_e$ is the
+selected action and $o_e$ its measured `DispatchOutcome`; simulator and compatible historical
+evidence are represented by the prior. In-flight, rejected, or not-yet-incorporated outcomes are
+not in $D_{\tau_d}$. Thus, $x_{i,r}^{(d)}$ is the **current prediction query**, whereas
+$D_{\tau_d}$ is the **past evidence already used to fit the posterior**. These are the precise
+forms of the earlier shorthand $x_i$ and $D_t$.
 
-- expected CPU service time and uncertainty;
-- expected GPU transfer and compute time and uncertainty;
-- GPU memory quantiles and probability of exceeding the safe allocation;
-- batch-size response, including the crossover point and diminishing returns;
-- the posterior probability that a particular GPU placement finishes before CPU execution; and
-- an out-of-distribution or insufficient-evidence indication.
+Maintain four named posterior predictive distributions:
+
+$$
+\mathcal{P}_{i,d}^{\mathrm{cpu}}
+:=
+p\!\left(
+T_{\mathrm{cpu},i}
+\mid x_{i,\mathrm{cpu}}^{(d)}, D_{\tau_d}
+\right)
+$$
+
+$$
+\mathcal{P}_{i,r,d}^{\mathrm{compute}}
+:=
+p\!\left(
+T_{\mathrm{gpu-compute},i,r}
+\mid x_{i,r}^{(d)}, D_{\tau_d}
+\right)
+$$
+
+$$
+\mathcal{P}_{i,r,d}^{\mathrm{transfer}}
+:=
+p\!\left(
+T_{\mathrm{h2d},i,r}
+\mid x_{i,r}^{(d)}, D_{\tau_d}
+\right)
+\times
+p\!\left(
+T_{\mathrm{d2h},i,r}
+\mid x_{i,r}^{(d)}, D_{\tau_d}
+\right)
+$$
+
+$$
+\mathcal{P}_{i,r,d}^{\mathrm{memory}}
+:=
+p\!\left(
+M_{\mathrm{gpu-peak},i,r}
+\mid x_{i,r}^{(d)}, D_{\tau_d}
+\right)
+$$
+
+The direct posterior summaries map to those names as follows:
+
+- $\mathcal{P}^{\mathrm{cpu}}$ supplies CPU service-time means, intervals, and quantiles.
+- $\mathcal{P}^{\mathrm{compute}}$ supplies GPU compute-time means, intervals, and quantiles;
+  $\mathcal{P}^{\mathrm{transfer}}$ supplies the corresponding H2D and D2H summaries. Samples from
+  all three GPU components form the total GPU service-time distribution.
+- $\mathcal{P}^{\mathrm{memory}}$ supplies peak-memory quantiles and the probability of exceeding
+  the safe allocation.
+
+Other scheduler quantities are **derived from**, rather than additional members of, the four
+named distributions:
+
+- Batch-size response, crossover, and diminishing returns come from reevaluating the named
+  distributions for alternative candidate basket sizes.
+- CPU-versus-GPU finish probabilities also include accumulation and predicted queued service. For
+  example, relative to $\tau_d$,
+
+  $$
+  F_{i,\mathrm{cpu}}^{(d)}
+  =
+  W_{\mathrm{cpu}}^{(d)} + T_{\mathrm{cpu},i}
+  $$
+
+  $$
+  F_{i,r}^{(d)}
+  =
+  A_{i,r}^{(d)} + W_r^{(d)}
+  + T_{\mathrm{h2d},i,r}
+  + T_{\mathrm{gpu-compute},i,r}
+  + T_{\mathrm{d2h},i,r},
+  $$
+
+  where $A_{i,r}^{(d)}$ is any proposed accumulation delay and $W_r^{(d)}$ is the delay derived
+  from work already admitted ahead of the basket. The controller compares samples to estimate
+  $\Pr(F_{i,r}^{(d)} < F_{i,\mathrm{cpu}}^{(d)})$.
+- Out-of-distribution or insufficient-evidence status is a feature-support and uncertainty
+  diagnostic, not a fifth predictive distribution.
+
+The initial implementation maintains separate H2D and D2H model states and constructs
+$\mathcal{P}^{\mathrm{transfer}}$ using conditionally independent residual draws given the frozen
+context and current model state. If paired measurements show material residual covariance, the
+transfer model must represent it explicitly. Finish-time comparisons must likewise record the
+dependence assumptions used to compose their posterior samples.
 
 Queue delay is not trained as if it were an intrinsic payload property. The controller derives
 expected queue delay from the queued work and predicted service distributions. This avoids teaching
@@ -107,10 +199,44 @@ the performance model policy-dependent behavior.
 
 ### 3.3 Scheduling decisions
 
+A scheduling decision applies only to uncommitted eligible work. It occurs after one or more
+compatible candidate baskets have been formed and a fresh resource snapshot has been captured,
+immediately before the selected basket would be admitted to the CPU worker queue or a particular
+GPU's FIFO queue. At that point the controller takes a consistent model version, freezes and logs
+$x_{i,r}^{(d)}$ for every candidate resource, runs inference, filters and scores the actions, and
+commits a `DispatchDecision`.
+
+The controller is invoked when:
+
+1. an event worker emits eligible items that create or change a ready basket;
+2. compatible items arrive for a basket being accumulated;
+3. an accumulation deadline, oldest-event limit, or backpressure limit requires reconsideration;
+   or
+4. a completion releases capacity and, after any valid model update, pending work can usefully be
+   reconsidered.
+
+Choosing `accumulate` is nonterminal: it must establish a mandatory reconsideration deadline, and
+the held work re-enters the controller on a compatible arrival, that deadline, or a useful capacity
+change. A completion with no ready or held work updates telemetry and possibly the model, but does
+not create a scheduling decision. Already admitted or running work is not migrated in the first
+study.
+
+After a selected implementation completes, processing is ordered as: record and validate the
+`DispatchOutcome`, call `observe()` for a valid measurement, commit the applicable parameter
+update, capture a fresh resource snapshot, and then reconsider pending work. Consequently, a
+completion can affect only later scheduling decisions. Event start, GPU start, and whole-event
+merge are not model-update points.
+
+In the new routing workflow, the initial decision boundary occurs when an event worker exposes a
+semantically equivalent CPU/GPU payload—analogous to the end of the current basket-forming CPU
+phase, but not determined by the sampled `dispatch_fraction`. It need not occur exactly once per
+event: one event may emit several baskets, while one accumulated basket may contain items from
+several events.
+
 The controller combines predictions with current resource and event state to choose:
 
 - execute on the CPU worker pool;
-- dispatch the current basket to GPU \(j\);
+- dispatch the current basket to GPU $j$;
 - temporarily accumulate more compatible items for a larger GPU basket; or
 - fall back to the configured static safe policy.
 
@@ -121,6 +247,25 @@ efficiency, and hardware performance.
 A direct best-action classifier is also deliberately avoided. The current Simload CPU/GPU fractions
 are generated workload assumptions, not counterfactual routing labels, and a classifier trained on
 them would become invalid as queues, devices, batch formation, and scheduling policies change.
+
+### 3.4 Single-event decision and learning loop
+
+The following planned-workflow diagram extends the notebook's left-to-right CPU/GPU timeline
+vocabulary. It follows one eligible basket while showing the earlier completion that supplied the
+current posterior and a later event that reuses the same scheduling pipeline.
+
+[![Planned single-event adaptive dispatch and learning loop](figures/adaptive-dispatch-event-loop.svg)](figures/adaptive-dispatch-event-loop.svg)
+
+*Figure 1. Inference is a read-only use of the posterior and resource state at a scheduling point.
+Dispatch changes admission, queue, and in-flight state but not model parameters. `observe()` updates
+the applicable parameters only after a valid selected-backend payload completion; event merge does
+not gate learning.*
+
+The event labels illustrate causality, not serialized execution. Events and payload completions are
+asynchronous, so a later basket uses whichever committed model version exists when it captures its
+snapshot; it does not wait for event $e$ to finish. Only the selected backend produces an outcome.
+The [figure-generation source](figures/render_adaptive_dispatch_architecture.py) uses the same blue
+CPU and orange GPU colors as the existing notebook visualization.
 
 ## 4. Bayesian performance model with online Kalman updates
 
@@ -133,20 +278,24 @@ sequential, drift-aware update used by the scheduler.
 
 ### 4.1 Observation model
 
+Let $k$ index valid outcome measurements in the order accepted by the applicable model state. This
+is distinct from decision index $d$ because decisions and completions are asynchronous. At update
+$k$, $x_k$ is the exact target-specific context frozen and logged at the originating decision; it
+must not be recomputed from the resource state observed at completion.
+
 Each positive timing or memory target is modeled in log space:
 
-\[
-y_t = \log z_t = \phi(x_t)^\mathsf{T}\theta_t + v_t,
-\qquad
-v_t \sim \mathcal{N}(0, R_t)
-\]
+$$
+y_k = \log z_k = \phi(x_k)^\mathsf{T}\theta_k + v_k, \qquad
+v_k \sim \mathcal{N}(0, R_k)
+$$
 
 where:
 
-- \(z_t\) is a measured service time, transfer time, or memory peak;
-- \(\phi(x_t)\) is a bounded feature basis computed from decision-time information;
-- \(\theta_t\) contains performance coefficients; and
-- \(R_t\) is observation-noise variance for the applicable payload/resource model.
+- $z_k$ is a measured service time, transfer time, or memory peak;
+- $\phi(x_k)$ is a bounded feature basis computed from decision-time information;
+- $\theta_k$ contains performance coefficients; and
+- $R_k$ is observation-noise variance for the applicable payload/resource model.
 
 The feature basis should initially include:
 
@@ -170,18 +319,18 @@ study.
 Use Bayesian linear regression with a Normal-Inverse-Gamma prior for each prediction target and
 payload/resource class:
 
-\[
+$$
 \theta \mid \sigma^2 \sim \mathcal{N}(m_0, \sigma^2 P_0)
-\]
+$$
 
-\[
+$$
 \sigma^2 \sim \operatorname{InvGamma}(a_0, b_0)
-\]
+$$
 
 This stage supplies:
 
-- a prior coefficient mean \(m_0\);
-- conditional coefficient covariance scale \(P_0\);
+- a prior coefficient mean $m_0$;
+- conditional coefficient covariance scale $P_0$;
 - an observation-noise estimate;
 - posterior predictive Student-t intervals; and
 - a compact set of sufficient statistics that can be persisted without retaining every raw event.
@@ -217,44 +366,44 @@ model but retain their own run- and device-specific calibration state.
 
 Online operation uses a linear Kalman-filter interpretation of sequential Bayes:
 
-\[
-\theta_t = F_t\theta_{t-1} + w_t,
+$$
+\theta_k = F_k\theta_{k-1} + w_k,
 \qquad
-w_t \sim \mathcal{N}(0, Q_t)
-\]
+w_k \sim \mathcal{N}(0, Q_k)
+$$
 
-For the initial implementation, \(F_t = I\). The predicted coefficient distribution is:
+For the initial implementation, $F_k = I$. The predicted coefficient distribution is:
 
-\[
-m_t^- = m_{t-1}
-\]
+$$
+m_k^- = m_{k-1}
+$$
 
-\[
-P_t^- = P_{t-1} + Q_t
-\]
+$$
+P_k^- = P_{k-1} + Q_k
+$$
 
-Given feature vector \(\phi_t\) and completed measurement \(y_t\):
+Given feature vector $\phi_k$ and completed measurement $y_k$:
 
-\[
-S_t = \phi_t^\mathsf{T}P_t^-\phi_t + R_t
-\]
+$$
+S_k = \phi_k^\mathsf{T}P_k^-\phi_k + R_k
+$$
 
-\[
-K_t = P_t^-\phi_t S_t^{-1}
-\]
+$$
+K_k = P_k^-\phi_k S_k^{-1}
+$$
 
-\[
-m_t = m_t^- + K_t(y_t - \phi_t^\mathsf{T}m_t^-)
-\]
+$$
+m_k = m_k^- + K_k(y_k - \phi_k^\mathsf{T}m_k^-)
+$$
 
-\[
-P_t = (I - K_t\phi_t^\mathsf{T})P_t^-
-\]
+$$
+P_k = (I - K_k\phi_k^\mathsf{T})P_k^-
+$$
 
-The resulting posterior \(\mathcal{N}(m_t, P_t)\) becomes the prior for the next observation.
-With \(Q_t=0\) and known \(R_t\), this is mathematically equivalent to sequential Gaussian
+The resulting posterior $\mathcal{N}(m_k, P_k)$ becomes the prior for the next observation.
+With $Q_k=0$ and known $R_k$, this is mathematically equivalent to sequential Gaussian
 Bayesian linear regression and recursive least squares. For scheduling, combine parameter
-uncertainty \(\phi_t^\mathsf{T}P_t\phi_t\) with observation noise \(R_t\), then transform predictive
+uncertainty $\phi_k^\mathsf{T}P_k\phi_k$ with observation noise $R_k$, then transform predictive
 samples from log space back to physical time or memory units. This preserves the asymmetric
 uncertainty that matters for finish-time and memory-risk decisions.
 
@@ -265,13 +414,13 @@ does not require a heavyweight probabilistic framework.
 
 Partition the coefficients conceptually into:
 
-\[
-\theta_t =
+$$
+\theta_k =
 \begin{bmatrix}
-\theta_{\mathrm{structural},t} \\
-\theta_{\mathrm{calibration},t}
+\theta_{\mathrm{structural},k} \\
+\theta_{\mathrm{calibration},k}
 \end{bmatrix}
-\]
+$$
 
 Structural coefficients describe relationships such as scaling with payload size, transfer volume,
 and batch size. Calibration coefficients describe the current run or device, including speed
@@ -279,13 +428,13 @@ offset, contention sensitivity, thermal effects, and other short-term changes.
 
 Configure block-diagonal process noise:
 
-\[
+$$
 Q =
 \begin{bmatrix}
 Q_{\mathrm{structural}} & 0 \\
 0 & Q_{\mathrm{calibration}}
 \end{bmatrix}
-\]
+$$
 
 with:
 
@@ -294,14 +443,14 @@ with:
 - larger process noise for run- and device-specific calibration coefficients.
 
 This preserves knowledge learned across jobs while allowing current performance to move. Initial
-values of \(Q\) should be derived from repeated-run variance in the simulator and calibration data,
+values of $Q$ should be derived from repeated-run variance in the simulator and calibration data,
 then tuned only on training scenarios.
 
 ### 4.5 Observation noise and robust updates
 
 Observation noise is initially estimated by the Normal-Inverse-Gamma regression. During operation:
 
-- update \(R\) from a bounded exponentially weighted innovation statistic;
+- update $R$ from a bounded exponentially weighted innovation statistic;
 - maintain separate noise estimates by target, workload kind, and resource class;
 - apply an innovation gate before updating;
 - classify initialization, telemetry failure, allocation retry, and preemption measurements
@@ -316,9 +465,9 @@ payloads must remain in the dataset because they are important to scheduling.
 
 Track normalized innovation:
 
-\[
-\eta_t = \frac{y_t-\phi_t^\mathsf{T}m_t^-}{\sqrt{S_t}}
-\]
+$$
+\eta_k = \frac{y_k-\phi_k^\mathsf{T}m_k^-}{\sqrt{S_k}}
+$$
 
 Use sustained innovation bias, interval-coverage degradation, or a version change to identify
 drift. On drift:
@@ -377,11 +526,12 @@ backend. Use conservative posterior sampling:
 - stop exploration when the budget is exhausted, telemetry is stale, or drift is active; and
 - never explore semantically unvalidated implementations.
 
-The Kalman posterior provides the parameter distribution used for Thompson sampling:
+Let $k(d)$ be the latest committed model-update index when decision $d$ captures its snapshot.
+That Kalman posterior provides the parameter distribution used for Thompson sampling:
 
-\[
-\tilde{\theta}_t \sim \mathcal{N}(m_t, P_t)
-\]
+$$
+\tilde{\theta}^{(d)} \sim \mathcal{N}\left(m_{k(d)}, P_{k(d)}\right)
+$$
 
 Observation-noise samples are included when comparing predicted realized completion times. Memory
 constraints use conservative posterior quantiles rather than an optimistic Thompson sample.
@@ -582,7 +732,7 @@ The adaptive policy must achieve:
 
 ### Bayesian and Kalman model
 
-- With \(Q=0\) and known \(R\), sequential Kalman updates match batch Bayesian linear regression.
+- With $Q=0$ and known $R$, sequential Kalman updates match batch Bayesian linear regression.
 - Posterior covariance contracts with repeated informative observations.
 - Unobserved feature directions retain uncertainty.
 - Simulator-prior covariance inflation gives real measurements the configured influence.

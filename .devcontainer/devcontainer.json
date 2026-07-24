@@ -21,7 +21,8 @@
       "extensions": [
         "openai.chatgpt",
         "ms-python.python",
-        "ms-toolsai.jupyter"
+        "ms-toolsai.jupyter",
+        "myriad-dreamin.tinymist"
       ]
     }
   }

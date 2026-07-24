@@ -5,6 +5,8 @@ ARG CUDA_VERSION=13.0.2
 
 FROM nvidia/cuda:${CUDA_VERSION}-devel-${OS} AS base
 
+ARG TYPST_VERSION=0.14.2
+
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt update \
@@ -17,6 +19,14 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
  && npm install -g @openai/codex@0.145.0 \
  && apt clean \
  && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL \
+      "https://github.com/typst/typst/releases/download/v${TYPST_VERSION}/typst-x86_64-unknown-linux-musl.tar.xz" \
+      -o /tmp/typst.tar.xz \
+ && tar -xJf /tmp/typst.tar.xz -C /tmp \
+ && mv "/tmp/typst-x86_64-unknown-linux-musl/typst" /usr/local/bin/typst \
+ && rm -rf /tmp/typst* \
+ && typst --version
 
 RUN apt update && apt install -y vim
 

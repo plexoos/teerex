@@ -10,6 +10,19 @@ The benchmark runs real, time-bounded NumPy and PyTorch workloads. It is useful 
 scheduling experiments, but it is not a physics simulation or a predictive model of a particular
 Geant4 application.
 
+## Planned adaptive dispatch study
+
+The current benchmark measures fixed CPU/GPU stage synchronization; it does not yet perform learned
+routing. The planned R&D extension adds a decision-time Bayesian performance model that routes
+semantically equivalent payload baskets to the CPU pool or an eligible GPU, then learns from valid
+completion measurements. The diagram follows one basket through prediction, dispatch, completion,
+and the posterior update available to later decisions.
+
+[![Planned single-event adaptive dispatch and learning loop](docs/figures/adaptive-dispatch-event-loop.svg)](docs/plan.md#34-single-event-decision-and-learning-loop)
+
+See the [adaptive Bayesian CPU/GPU dispatch study plan](docs/plan.md) for the precise scheduling
+points, prediction targets, safety constraints, and evaluation criteria.
+
 ## Quick start
 
 ### Install and check the GPU
@@ -42,7 +55,7 @@ This command has one input and two forms of output:
   workload, measured phase timings, queue/wait durations, and timeline offsets.
 
 With this configuration, Simload generates 20 events with a nominal mean work budget of 3 seconds
-per event. The event manager runs the CPU part sequentially, while the event's post-dispatch CPU
+per event. The event manager runs the CPU part sequentially, while the event's CPU continuation
 work is allowed to overlap its GPU work. Because this is a real compute workload, expect the example
 to take tens of seconds or longer, depending on the CPU, GPU, and numerical libraries.
 
@@ -86,13 +99,13 @@ Interpret these values as follows:
 
 - `event_size_s` is a nominal work budget, not a measured runtime. It is divided into requested CPU
   and GPU work.
-- `runtime_s` is event residence time: CPU-pre start through final merge. It is not the sum of CPU
-  and GPU runtimes, because the stages may overlap.
+- `runtime_s` is event residence time: the start of basket-forming CPU work through completion of
+  event integration. It is not the sum of CPU and GPU runtimes, because the stages may overlap.
 - `gpu_queue_delay_s` reveals backlog at the single GPU worker. `gpu_wait_runtime_s` measures time
   spent at an explicit synchronization point.
 - `end_offset_s.max()` is the measured workload makespan from the simulation timing origin through
-  the final merge. It excludes event sampling before that origin and DataFrame, terminal, and CSV
-  processing afterward.
+  final event integration. It excludes event sampling before that origin and DataFrame, terminal,
+  and CSV processing afterward.
 
 For a visual comparison, open [the analysis notebook](notebooks/simload.ipynb):
 
@@ -111,27 +124,46 @@ fig, ax, timeline = plot_run_timeline(df, "quickstart_event_barrier")
 The notebook combines runs and draws CPU/GPU busy intervals, which makes overlap and idle gaps much
 easier to see.
 
+## Event-phase terminology
+
+The documentation uses the following domain-facing names. The existing `cpu_pre_*`, `cpu_post_*`,
+and `merge_*` field names remain unchanged for compatibility with current CSVs, Python code, and
+notebooks.
+
+| Preferred term | Existing fields | Definition and Geant4 analogy |
+| --- | --- | --- |
+| **Basket-forming CPU phase** | `cpu_pre_*` | CPU event work performed until a GPU-eligible basket is ready to submit. In the Geant4 analogy, this covers particle transport up to the point at which optical photons have been generated and collected into a dispatchable basket. |
+| **CPU continuation phase** | `cpu_post_*` | CPU event work that remains after the basket is submitted. In the Geant4 analogy, this is follow-up transport of the remaining non-optical particles and other CPU-only event work. It can overlap GPU execution when the synchronization mode permits. |
+| **GPU synchronization wait** | `gpu_wait_*` | Time during which the event manager or result collector explicitly waits for the selected GPU result. Its position relative to CPU continuation depends on the synchronization mode. |
+| **Event integration phase** | `merge_*` | Reduction and bookkeeping that combine the completed CPU and GPU contributions into the event result. It begins after any required GPU wait and is measured separately from CPU continuation. |
+
+At the application level, CPU continuation, a possible GPU wait, and event integration together
+form the broader **post-dispatch completion stage**. They remain separate phases in this study
+because their ordering and timings are essential to explaining overlap and event residence. The
+current synthetic benchmark does not transport particles or form a real optical-photon basket; the
+mapping above defines the intended Geant4 interpretation of its synthetic phases.
+
+See the [editable general CPU/GPU event-phase diagram](docs/figures/cpu-gpu-event-phases.md) for a
+plain-text view of the phase ordering and CPU/GPU worker lanes.
+
 ## Compare the synchronization policies
 
 The three bundled mode configurations use the same default workload and seed, so they are a useful
 first comparison:
 
 ```bash
-uv run simload --config config/mode_blocking.json \
-    --out simload_runs/comparison/blocking.csv
-uv run simload --config config/mode_event_barrier.json \
-    --out simload_runs/comparison/event_barrier.csv
-uv run simload --config config/mode_async.json \
-    --out simload_runs/comparison/async.csv
+uv run simload --config config/mode_blocking.json --out simload_runs/comparison/blocking.csv
+uv run simload --config config/mode_event_barrier.json --out simload_runs/comparison/event_barrier.csv
+uv run simload --config config/mode_async.json --out simload_runs/comparison/async.csv
 ```
 
 The output directory is created automatically. These paths keep the bundled example CSVs untouched.
 
 | Mode | Event ordering | Overlap | What to look for |
 | --- | --- | --- | --- |
-| `blocking` | CPU pre → submit GPU → wait → CPU post → merge | None by design | The wait exposes essentially the full GPU stage; queue delay should remain small. |
-| `event_barrier` | CPU pre → submit GPU → CPU post → wait → merge | Within the current event | CPU-post work hides part of the GPU runtime; the wait records only the remaining GPU time. |
-| `async` | CPU pre → submit GPU → CPU post → later CPU events → collect/merge | Within and across events | CPU progress can continue, but GPU queue delay can grow when submissions outpace the worker. |
+| `blocking` | basket-forming CPU → submit GPU → wait → CPU continuation → event integration | None by design | The wait exposes essentially the full GPU stage; queue delay should remain small. |
+| `event_barrier` | basket-forming CPU → submit GPU → CPU continuation → wait → event integration | Within the current event | CPU continuation hides part of the GPU runtime; the wait records only the remaining GPU time. |
+| `async` | basket-forming CPU → submit GPU → CPU continuation → later CPU events → collect/integrate | Within and across events | CPU progress can continue, but GPU queue delay can grow when submissions outpace the worker. |
 
 All GPU tasks still execute in submission order on one worker and one CUDA stream. `async` pipelines
 events; it does not run multiple GPU stages concurrently.
@@ -143,29 +175,45 @@ distribution.
 
 ## What the experiment models
 
-The component topology is fixed; the synchronization mode determines the ordering of CPU post, GPU
-waits, later CPU events, and merge:
+The component topology is fixed; the synchronization mode determines the ordering and overlap of
+CPU continuation, GPU waits, later CPU events, and event integration:
 
-```text
-CPU event manager: sample -> CPU pre -> submit -> policy-dependent CPU post / wait / merge
-                                         |
-FIFO CUDA worker:                        +-> GPU stage -> result
-```
+![General CPU/GPU event phases](docs/figures/event_timeline.svg)
+
+The figure is qualitative: horizontal widths do not encode durations. Its hand-offs illustrate the
+blocking-style sequence; event-barrier and asynchronous modes use the same phases but can overlap
+them. See the [phase definitions and rendering instructions](docs/figures/cpu-gpu-event-phases.md)
+or edit the [Typst source](docs/figures/event_timeline.typ) directly.
+
+The figure uses application-level names while retaining explicit mappings to the current CSV
+schema:
+
+- **Basket-forming CPU phase** (`cpu_pre_*`) performs CPU transport until GPU-eligible work has
+  been collected for submission.
+- **GPU basket-processing phase** (`gpu_*`) processes the submitted compatible work on the GPU.
+- **CPU continuation phase** (`cpu_post_*`) resumes or completes CPU-side work after submission.
+- **Event integration** (`merge_*`) combines CPU and GPU results and completes required
+  event-level bookkeeping or synchronization.
+
+Both CPU phases are deliberately shown on the same CPU event-worker lane. Their separate colored
+bands identify their positions relative to GPU submission and completion, not different CPU
+resources.
 
 The synthetic workload is constructed in four steps:
 
 1. Sample `event_size_s` from a fixed, uniform, or Gaussian distribution.
 2. Sample `cpu_fraction` from a Beta distribution and set
    `gpu_fraction = 1 - cpu_fraction`.
-3. Split the requested CPU work around a sampled dispatch point into `cpu_pre_work_s` and
-   `cpu_post_work_s`.
+3. Split the requested CPU work around a sampled dispatch point into synthetic basket-forming work
+   (`cpu_pre_work_s`) and CPU continuation work (`cpu_post_work_s`).
 4. Scale the CPU/GPU matrix dimensions, nominal GPU allocation, and transfer volumes from the
    sampled work.
 
-The CPU manager executes time-bounded NumPy matrix multiplications for the pre- and post-dispatch
-phases. A dedicated local thread executes the GPU stage with PyTorch, including synthetic
-host-to-device transfer, device allocation, matrix multiplication, device-to-host transfer, and
-synchronization. A small final delay represents event reduction/bookkeeping.
+The CPU manager executes time-bounded NumPy matrix multiplications for the synthetic
+basket-forming and CPU continuation phases. A dedicated local thread executes the GPU stage with
+PyTorch, including synthetic host-to-device transfer, device allocation, matrix multiplication,
+device-to-host transfer, and synchronization. A small final delay represents event integration
+through reduction/bookkeeping.
 
 There is no external event-arrival clock, batching model, or synthetic resource pool. CPU events are
 started sequentially by one Python event-manager thread, although the NumPy BLAS implementation may
@@ -179,7 +227,7 @@ columns fall into four useful groups:
 | Group | Representative columns | Meaning |
 | --- | --- | --- |
 | Sampled workload | `event_size_s`, `cpu_fraction`, `gpu_fraction`, `dispatch_fraction` | Nominal event composition chosen before execution. |
-| Requested payload | `cpu_pre_work_s`, `gpu_work_s`, `cpu_post_work_s`, matrix sizes, `gpu_memory_mb`, `h2d_mb`, `d2h_mb` | Work targets and synthetic resource sizes. These are not observed utilization or bandwidth. |
+| Requested payload | `cpu_pre_work_s`, `gpu_work_s`, `cpu_post_work_s`, matrix sizes, `gpu_memory_mb`, `h2d_mb`, `d2h_mb` | Requested basket-forming, GPU, and CPU-continuation work plus synthetic resource sizes. These are not observed utilization or bandwidth. |
 | Measured durations | `runtime_s`, `cpu_*_runtime_s`, `gpu_runtime_s`, `gpu_queue_delay_s`, `gpu_wait_runtime_s`, `merge_runtime_s` | Wall-clock phase and event durations measured with `time.perf_counter()`. |
 | Timeline | raw `*_time` columns and corresponding `*_time_offset_s` columns | Stage boundaries for reconstructing overlap within one run. |
 
@@ -192,12 +240,12 @@ retains a fallback so it can also visualize those older artifacts.
 | Column | Interpretation |
 | --- | --- |
 | `event_size_s` | Requested total work budget. By construction, `cpu_work_s + gpu_work_s = event_size_s`. |
-| `cpu_runtime_s` | Measured CPU busy time: `cpu_pre_runtime_s + cpu_post_runtime_s`. |
+| `cpu_runtime_s` | Measured basket-forming plus CPU-continuation busy time: `cpu_pre_runtime_s + cpu_post_runtime_s`. |
 | `gpu_runtime_s` | Worker start to GPU completion, including allocation, transfers, matrix work, and synchronization. |
 | `gpu_queue_delay_s` | Time from local submission to worker start. It measures FIFO backlog and thread scheduling, not CUDA kernel-queue latency. |
 | `gpu_wait_runtime_s` | Time spent in the explicit wait performed by the event manager or result collector. |
-| `merge_runtime_s` | Final synthetic reduction delay and its small Python overhead. |
-| `runtime_s` | CPU-pre start to merge completion for the event. In `async`, this can include substantial deferred completion time. |
+| `merge_runtime_s` | Event-integration time: the final synthetic reduction delay and its small Python overhead. It excludes explicit GPU waiting. |
+| `runtime_s` | Basket-forming CPU start to event-integration completion. In `async`, this can include substantial deferred completion time. |
 | `start_offset_s`, `end_offset_s` | Event start and completion relative to the simulation timing origin. |
 
 The raw timestamp columns—such as `gpu_submit_time`, `gpu_start_time`, and `merge_end_time`—use an
@@ -209,7 +257,7 @@ A few distinctions matter when interpreting a run:
 
 - In `blocking` mode, `cpu_end_time - cpu_start_time` spans the intervening GPU wait. Use
   `cpu_runtime_s` or the separate CPU phase intervals for actual CPU busy time.
-- In `event_barrier` mode, CPU post and GPU runtime can overlap, so adding their durations
+- In `event_barrier` mode, CPU continuation and GPU runtime can overlap, so adding their durations
   overestimates elapsed time.
 - In `async` mode, a near-zero `gpu_wait_runtime_s` can simply mean the GPU result was already ready
   when it was collected. It does not imply that the event completed immediately.
@@ -248,7 +296,8 @@ The notebook:
 
 - loads and combines the CSVs, using each filename stem as the run label;
 - writes the combined table to `simload_analysis/combined.csv`;
-- displays separate CPU-pre and CPU-post intervals for current local outputs; and
+- displays separate basket-forming and CPU-continuation intervals (`cpu_pre_*` and `cpu_post_*`) for
+  current local outputs; and
 - falls back to a whole-CPU interval when reading outputs from the earlier schema.
 
 To save the displayed timeline, pass `outdir=outdir` to `plot_run_timeline` in the final cell.
@@ -319,7 +368,7 @@ uv run simload --config config/my_experiment.json --out simload_runs/my_experime
 | `gpu_mode` | unset | Explicit `blocking`, `event_barrier`, or `async` policy. |
 | `gpu_async` | `false` | Legacy policy flag used only when `gpu_mode` is absent. |
 | `async_merge_ready` | `false` | If `true`, merge already-complete async events between CPU events instead of deferring all collection. Use a JSON boolean, not a string. |
-| `reduce_work_s` | `0.01` | Synthetic event reduction delay. |
+| `reduce_work_s` | `0.01` | Synthetic event-integration delay for reduction/bookkeeping. |
 | `num_cpus_per_event` | `1.0` | Resource-request metadata in local output; not enforced. |
 | `num_gpus_per_event` | `1.0` | Resource-request metadata in local output; not enforced. |
 
@@ -437,13 +486,3 @@ part of the experiment, but it is not a drop-in equivalent of the local model:
 The Ray CSV does not expose scheduler queue delay or explicit wait duration. Do not pass
 `config/mode_event_barrier.json` to `simload-ray`; that implementation does not interpret `gpu_mode`.
 Also use a separate output filename when comparing the two implementations.
-
-## Repository layout
-
-```text
-teerex/simload.py       main local CPU/GPU experiment
-teerex/simload_ray.py   earlier Ray-scheduled variant
-teerex/analysis.py      CSV loading and plotting helpers
-config/                 workload and synchronization examples
-notebooks/simload.ipynb interactive comparison notebook
-```

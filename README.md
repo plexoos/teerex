@@ -94,22 +94,16 @@ Interpret these values as follows:
   the final merge. It excludes event sampling before that origin and DataFrame, terminal, and CSV
   processing afterward.
 
-For a visual comparison, open [the analysis notebook](notebooks/simload.ipynb):
+For a visual comparison, open [the marimo analysis notebook](notebooks/simload.py):
 
 ```bash
-uv run jupyter lab notebooks/simload.ipynb
+uv run marimo edit notebooks/simload.py
 ```
 
-For the quick-start output, change the notebook's `csv_files` cell and final timeline call to:
-
-```python
-csv_files = [Path("../simload_runs/quickstart_event_barrier.csv")]
-
-fig, ax, timeline = plot_run_timeline(df, "quickstart_event_barrier")
-```
-
-The notebook combines runs and draws CPU/GPU busy intervals, which makes overlap and idle gaps much
-easier to see.
+Enter the quick-start CSV in the notebook's input control and select its scenario. The notebook
+normalizes older and current Simload output as well as measured CSVs that implement the same
+timeline columns, including `simg4ox` event timing. It combines runs, reports numerical busy-time
+metrics, and draws CPU/GPU busy intervals so overlap and idle gaps are easy to inspect.
 
 ## Compare the synchronization policies
 
@@ -173,11 +167,12 @@ use additional native CPU threads internally.
 
 ## Reading the CSV
 
-Fresh CSVs from the current local implementation contain one row and 62 columns per event. The
-columns fall into four useful groups:
+Fresh CSVs from the current local implementation contain one row per event. The columns fall into
+five useful groups:
 
 | Group | Representative columns | Meaning |
 | --- | --- | --- |
+| Run identity | `scenario`, `dispatch_mode` | Stable run label and blocking, event-barrier, or asynchronous dispatch policy. |
 | Sampled workload | `event_size_s`, `cpu_fraction`, `gpu_fraction`, `dispatch_fraction` | Nominal event composition chosen before execution. |
 | Requested payload | `cpu_pre_work_s`, `gpu_work_s`, `cpu_post_work_s`, matrix sizes, `gpu_memory_mb`, `h2d_mb`, `d2h_mb` | Work targets and synthetic resource sizes. These are not observed utilization or bandwidth. |
 | Measured durations | `runtime_s`, `cpu_*_runtime_s`, `gpu_runtime_s`, `gpu_queue_delay_s`, `gpu_wait_runtime_s`, `merge_runtime_s` | Wall-clock phase and event durations measured with `time.perf_counter()`. |
@@ -223,35 +218,23 @@ JSON config beside its uniquely named output when experiment provenance matters.
 
 ## Analysis notebook
 
-[notebooks/simload.ipynb](notebooks/simload.ipynb) provides a compact comparison workflow. Its
-checked-in inputs, `mode_async.csv` and `mode_blocking.csv`, use the earlier schema. In the notebook,
-point the input cell at newly generated comparison files:
+[notebooks/simload.py](notebooks/simload.py) is a reactive marimo notebook for simulated and
+measured event timelines:
 
-```python
-csv_files = [
-    Path("../simload_runs/comparison/blocking.csv"),
-    Path("../simload_runs/comparison/event_barrier.csv"),
-    Path("../simload_runs/comparison/async.csv"),
-]
+```bash
+uv run marimo edit notebooks/simload.py
 ```
 
-Then change the final timeline cell to use the matching file stems:
+Its input control accepts one CSV path per line. By default it offers the checked-in
+`mode_async.csv` and `mode_blocking.csv` files and, when teerex is checked out under simphony,
+`../../pfrich_timing/events.csv`. Scenario selection, the numerical summary, busy-lane plot, and
+searchable event table update together.
 
-```python
-fig, axes, timelines = plot_run_timeline(
-    df,
-    ["blocking", "event_barrier", "async"],
-)
-```
-
-The notebook:
-
-- loads and combines the CSVs, using each filename stem as the run label;
-- writes the combined table to `simload_analysis/combined.csv`;
-- displays separate CPU-pre and CPU-post intervals for current local outputs; and
-- falls back to a whole-CPU interval when reading outputs from the earlier schema.
-
-To save the displayed timeline, pass `outdir=outdir` to `plot_run_timeline` in the final cell.
+The loader preserves a producer-supplied `scenario`; otherwise it uses the filename stem. It maps
+the legacy `gpu_mode` name to the shared `dispatch_mode` column and derives missing run-local offset
+columns from raw monotonic timestamps. Separate CPU-pre and CPU-post intervals are shown when
+available, with a whole-CPU fallback for older CSV files. Producer-specific payload columns are not
+dropped.
 
 ## Configuration
 
@@ -445,5 +428,5 @@ teerex/simload.py       main local CPU/GPU experiment
 teerex/simload_ray.py   earlier Ray-scheduled variant
 teerex/analysis.py      CSV loading and plotting helpers
 config/                 workload and synchronization examples
-notebooks/simload.ipynb interactive comparison notebook
+notebooks/simload.py    interactive marimo comparison notebook
 ```

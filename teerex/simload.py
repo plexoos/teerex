@@ -373,6 +373,8 @@ def _merge_event_results(
     cpu_runtime_s = cpu_pre_result["runtime_s"] + cpu_post_result["runtime_s"]
 
     return {
+        "scenario": event["scenario"],
+        "dispatch_mode": gpu_mode,
         "event_id": event["event_id"],
         "stage": "event",
         "gpu_mode": gpu_mode,
@@ -482,6 +484,7 @@ def _merge_ready_pending_events(
 def run_simulation(params: Dict[str, Any]) -> pd.DataFrame:
     events = generate_events(params)
     gpu_mode = _gpu_mode(params)
+    scenario = str(params.get("scenario", gpu_mode))
     async_merge_ready = bool(params.get("async_merge_ready", False))
 
     t0 = time.perf_counter()
@@ -495,6 +498,7 @@ def run_simulation(params: Dict[str, Any]) -> pd.DataFrame:
     try:
         for spec in events:
             event = asdict(spec)
+            event["scenario"] = scenario
             event["reduce_work_s"] = float(params.get("reduce_work_s", 0.01))
 
             cpu_pre_result = _run_cpu_payload(event, "cpu_pre_work_s", "cpu_pre")
@@ -585,7 +589,46 @@ def run_simulation(params: Dict[str, Any]) -> pd.DataFrame:
     df["start_offset_s"] = df["start_time"] - t0
     df["end_offset_s"] = df["end_time"] - t0
 
-    return df.sort_values("event_id")
+    shared_timeline_columns = [
+        "scenario",
+        "dispatch_mode",
+        "event_id",
+        "start_time",
+        "end_time",
+        "cpu_start_time",
+        "cpu_end_time",
+        "cpu_pre_start_time",
+        "cpu_pre_end_time",
+        "gpu_submit_time",
+        "gpu_start_time",
+        "gpu_end_time",
+        "gpu_wait_start_time",
+        "gpu_wait_end_time",
+        "cpu_post_start_time",
+        "cpu_post_end_time",
+        "start_offset_s",
+        "end_offset_s",
+        "cpu_start_time_offset_s",
+        "cpu_end_time_offset_s",
+        "cpu_pre_start_time_offset_s",
+        "cpu_pre_end_time_offset_s",
+        "gpu_submit_time_offset_s",
+        "gpu_start_time_offset_s",
+        "gpu_end_time_offset_s",
+        "gpu_wait_start_time_offset_s",
+        "gpu_wait_end_time_offset_s",
+        "cpu_post_start_time_offset_s",
+        "cpu_post_end_time_offset_s",
+        "runtime_s",
+        "cpu_pre_runtime_s",
+        "cpu_post_runtime_s",
+        "cpu_runtime_s",
+        "gpu_queue_delay_s",
+        "gpu_runtime_s",
+        "gpu_wait_runtime_s",
+    ]
+    remaining_columns = [column for column in df.columns if column not in shared_timeline_columns]
+    return df[shared_timeline_columns + remaining_columns].sort_values("event_id")
 
 
 def default_params() -> Dict[str, Any]:
@@ -697,15 +740,19 @@ def main() -> None:
         params["num_gpus"] = args.num_gpus
 
     out_path = resolve_output_path(args.config, args.out, args.out_dir)
+    params.setdefault("scenario", os.path.splitext(os.path.basename(out_path))[0])
 
     print("Local Simload mode:")
     print(f"CUDA device: {torch.cuda.get_device_name() if torch.cuda.is_available() else 'unavailable'}")
+    print(f"scenario: {params['scenario']}")
     print(f"gpu_mode: {_gpu_mode(params)}")
     print()
 
     df = run_simulation(params)
 
     cols = [
+        "scenario",
+        "dispatch_mode",
         "event_id",
         "gpu_mode",
         "gpu_async",

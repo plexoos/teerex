@@ -430,3 +430,57 @@ teerex/analysis.py      CSV loading and plotting helpers
 config/                 workload and synchronization examples
 notebooks/simload.py    interactive marimo comparison notebook
 ```
+
+## Bayesian dispatch study from measured timelines
+
+The offline study command consumes measured `simg4ox` runs and compares a finite
+family of CPU/GPU scheduling configurations:
+
+```bash
+uv run teerex-study --root /path/to/teerex-study --draws 64
+```
+
+Set the resource budget explicitly when testing a larger machine:
+
+```bash
+uv run teerex-study --root /path/to/teerex-study --draws 64 \
+  --workers 1 2 4 8 16 20 --inflight-limits 1 2 4 8 16 32 64
+```
+
+The defaults search 49 configurations; this example searches 85. The selected
+grid is persisted in model metadata and reproduction commands. When collection
+metadata provides CSV, configuration and macro hashes, ingestion verifies them.
+Recorded executable seeds must agree with the manifest, and independent
+replications must use distinct CPU seeds and GPU streams.
+
+Each input run lives at `runs/<run_id>/` beneath the study root and contains
+`events.csv`, `events.manifest.json`, `simg4ox.stdout.log`, and `run.json`.
+The run metadata identifies the physics settings, independent CPU/GPU RNG
+replication, event count, warm-up count, and completion status. Replications
+0/1 train the model, 2 selects the policy, and 3 provides the final held-out
+evaluation. Original measurements are preserved; generated datasets, model
+parameters, figures and reports receive separate timestamped directories.
+
+The measured phases are CPU work before dispatch, host-observed GPU service,
+CPU cleanup while the GPU dispatch gate remains held, and remaining CPU work.
+The CSV must include `cpu_pre_runtime_s`, `gpu_runtime_s`,
+`cpu_post_locked_runtime_s`, `cpu_post_unlocked_runtime_s`, and workload counts.
+The GPU gate includes collection/reset after device completion. CPU post work
+depends on the GPU result, so synthetic within-event overlap is not assumed.
+
+The model uses conjugate Bayesian regression on log durations, with source
+settings available before CPU processing and generated photon/genstep counts
+available at GPU submission. The replay compares blocking, synchronous workers,
+and bounded asynchronous execution across the complete configured validation
+grid with unit-event CPU admission. The replay API also accepts
+`event_batch_size=N` for synchronous contiguous Geant4 worker batches. It preserves
+CPU capacity, occupied synchronous workers, GPU gate ownership,
+and admission backlog. It chooses the least concurrency within 5% of the best
+posterior median makespan, then evaluates that frozen choice on held-out runs.
+
+Policy improvements are counterfactual predictions under fixed service-demand
+assumptions. They are not measurements of asynchronous Simphony execution.
+Inspect the report's predictive coverage, per-condition calibration, contention
+sensitivity, and joint-residual sensitivity before interpreting its intervals.
+Actual CPU/GPU concurrency, batching, or memory-capacity benefits require their
+own executable experiments.

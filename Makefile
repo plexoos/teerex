@@ -7,7 +7,7 @@ help:
 	@printf '%s\n' \
 		'all        Build source and wheel distributions (alias for build)' \
 		'install    Sync the project environment from uv.lock' \
-		'test       Run the unittest suite' \
+		'test       Run the pytest suite' \
 		'build      Build source and wheel distributions in dist/' \
 		'notebook   Open the marimo analysis notebook' \
 		'clean      Remove caches, package metadata, and build artifacts' \
@@ -19,7 +19,7 @@ install:
 	$(UV) sync --locked
 
 test:
-	$(UV) run --locked python -m unittest discover -s tests -v
+	$(UV) run --locked python -m pytest -v
 
 build:
 	$(UV) build

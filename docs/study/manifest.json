@@ -1,0 +1,78 @@
+{
+  "study": "ratio-study-v3",
+  "source": {
+    "path": "/Users/dsmirnov/work/plexoos/teerex-study/ratio-study-v3/all-production-events.csv",
+    "sha256": "be6fb71f6b8a5dbea2f632cf6ed29bb13d49a2ef0165098cdb9ecbb7a91f1f01",
+    "bytes": 26050137
+  },
+  "events": 22000,
+  "runs": 44,
+  "conditions": 11,
+  "draws": 64,
+  "random_seed": 20261031,
+  "worker_counts": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    20
+  ],
+  "inflight_limits": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32,
+    64
+  ],
+  "files": {
+    "events.csv.gz": {
+      "sha256": "1c00265c0a517ca30b0c8dea9c92056f36b7e0f7ad684169642ba10a248a82a9",
+      "bytes": 4402659
+    },
+    "heldout-metrics.csv": {
+      "sha256": "9b94b522165a384e29afead5c73084e8f648c27705124d55188f208ff4470719",
+      "bytes": 20535
+    },
+    "test-predictions.csv.gz": {
+      "sha256": "353a2f2ee25766a34d2a4091d4664b28c2fa5aef4ed3e1862be83cd6efc9bfed",
+      "bytes": 1385720
+    },
+    "heldout-condition-metrics.csv": {
+      "sha256": "c55f437d3fda906bdcda98ceae8ddf64aba018f7b84c2aa821ef4da50c484bef",
+      "bytes": 13127
+    },
+    "policy-summary.csv": {
+      "sha256": "a3b7e9580933aeb9e951dbac11631454fd6d653fd055217ed2deb0bf846f38d7",
+      "bytes": 110354
+    },
+    "resource-summary.csv": {
+      "sha256": "3539b7c9d5a434c3b7a9ea733b66fe3d211c9693141cb67d5dae58a722ca71f4",
+      "bytes": 2208
+    },
+    "blocking-trace-validation.csv": {
+      "sha256": "10c32be408670867ffd7a6a29954d79270c4505ec233405a8242b7cd6cdbf4d2",
+      "bytes": 10689
+    },
+    "frozen-policies.json": {
+      "sha256": "a26cb5329228079ef76d864bf7072f99067552e8dac3249e7d9e2cd94ffa04a8",
+      "bytes": 187343
+    },
+    "duration-models.json": {
+      "sha256": "b475973672db17c2d3abbd7e0c2868a8e0d58c6d6569792575254734bb60b099",
+      "bytes": 106327
+    },
+    "training-diagnostics.json": {
+      "sha256": "d67bd0a4d6e59d06a9a0cdd722f84d8c3ce5b861e628a5621b7e770e9acb08da",
+      "bytes": 6195
+    }
+  },
+  "code_sha256": {
+    "scripts/refresh_ratio_study.py": "a7d0d5cea3765481c511aaf9d6c9f6c1f998f6e1603d3256cdf57fe496e708d1",
+    "teerex/study.py": "ddb83f0fa3cc5e2f305b650df79d0257a338fc8359f6e32de9cb864c22302267",
+    "teerex/bayes.py": "c6aaee01d5a245fd6465ad27a83ea116a4029b8d624b62726df2bfabe9665a39",
+    "teerex/replay.py": "8c686a71c0025342e67dd2c2a19d6cf0c7e9b23dba0890e71242e102bb9906d2"
+  }
+}

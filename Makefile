@@ -16,27 +16,29 @@ help:
 all: build
 
 install:
-	$(UV) sync --locked
+	$(UV) sync
 
 test:
-	$(UV) run --locked python -m pytest -v
+	$(UV) run python -m pytest -v
 
 build:
 	$(UV) build
 
 notebook:
-	$(UV) run --locked marimo edit notebooks/simload.py
+	$(UV) run marimo edit notebooks/simload.py
 
 # Preserve environments and study results during routine cleanup.
 clean:
-	find . -type d \( -name .git -o -name .venv -o -name venv \) -prune -o \
+	@printf '%s\n' 'Cleaning generated files...'
+	@find . -type d \( -name .git -o -name .venv -o -name venv \) -prune -o \
 		-type d \( -name __pycache__ -o -name .ipynb_checkpoints \
 		-o -name .pytest_cache -o -name .mypy_cache -o -name .ruff_cache \
-		-o -name '*.egg-info' \) \
+		-o -name __marimo__ -o -name '*.egg-info' \) \
 		-prune -exec rm -rf {} + -o \
-		-type f \( -name '*.pyc' -o -name '*.pyo' -o -iname .DS_Store \) \
+		-type f \( -name '*.pyc' -o -name '*.pyo' -o -name __marimo__ \
+		-o -iname .DS_Store \) \
 		-exec rm -f {} +
-	rm -rf build dist
+	@rm -rf build dist
 
 # Restore a checkout without generated files or local virtual environments.
 distclean: clean

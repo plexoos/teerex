@@ -1,0 +1,237 @@
+{
+  "drich": {
+    "phase_order": [
+      "cpu_pre_runtime_s",
+      "gpu_runtime_s",
+      "cpu_post_locked_runtime_s",
+      "cpu_post_unlocked_runtime_s"
+    ],
+    "training_phase_correlation": [
+      [
+        1.0,
+        0.03391344046189638,
+        0.0021789589848519235,
+        0.058599492019852796
+      ],
+      [
+        0.03391344046189638,
+        0.9999999999999999,
+        0.10037983373389385,
+        0.09538113696565721
+      ],
+      [
+        0.0021789589848519235,
+        0.10037983373389385,
+        1.0,
+        0.5082909870576633
+      ],
+      [
+        0.058599492019852796,
+        0.09538113696565721,
+        0.5082909870576633,
+        1.0
+      ]
+    ],
+    "training_within_run_lag1": {
+      "cpu_pre_runtime_s": 0.02619450318102571,
+      "gpu_runtime_s": 0.00703917772517761,
+      "cpu_post_locked_runtime_s": 0.5947673201629345,
+      "cpu_post_unlocked_runtime_s": 0.3603043103671848
+    },
+    "training_within_run_time_correlation": {
+      "cpu_pre_runtime_s": -0.02767042280673132,
+      "gpu_runtime_s": -0.11961196373311697,
+      "cpu_post_locked_runtime_s": 0.044373147278913755,
+      "cpu_post_unlocked_runtime_s": 0.2769905027007118
+    },
+    "joint_residual_block_length": 8
+  },
+  "pfrich": {
+    "phase_order": [
+      "cpu_pre_runtime_s",
+      "gpu_runtime_s",
+      "cpu_post_locked_runtime_s",
+      "cpu_post_unlocked_runtime_s"
+    ],
+    "training_phase_correlation": [
+      [
+        1.0,
+        0.1232157065271361,
+        0.09584512236054607,
+        0.21331719165649132
+      ],
+      [
+        0.12321570652713612,
+        0.9999999999999999,
+        0.07366555890260981,
+        0.11347739834459285
+      ],
+      [
+        0.09584512236054608,
+        0.07366555890260981,
+        1.0,
+        0.3483748371318939
+      ],
+      [
+        0.21331719165649132,
+        0.11347739834459286,
+        0.3483748371318939,
+        0.9999999999999998
+      ]
+    ],
+    "training_within_run_lag1": {
+      "cpu_pre_runtime_s": 0.15059961412798534,
+      "gpu_runtime_s": 0.042125244618823374,
+      "cpu_post_locked_runtime_s": 0.8680216895269515,
+      "cpu_post_unlocked_runtime_s": 0.23887859019672888
+    },
+    "training_within_run_time_correlation": {
+      "cpu_pre_runtime_s": -0.01839125060010239,
+      "gpu_runtime_s": -0.08002116544300741,
+      "cpu_post_locked_runtime_s": 0.6947211385593032,
+      "cpu_post_unlocked_runtime_s": 0.15159334664483898
+    },
+    "joint_residual_block_length": 8
+  },
+  "balanced": {
+    "phase_order": [
+      "cpu_pre_runtime_s",
+      "gpu_runtime_s",
+      "cpu_post_locked_runtime_s",
+      "cpu_post_unlocked_runtime_s"
+    ],
+    "training_phase_correlation": [
+      [
+        1.0,
+        0.013235162577189652,
+        0.28988260651491327,
+        0.46518307263855774
+      ],
+      [
+        0.013235162577189654,
+        0.9999999999999998,
+        -0.042137910714553695,
+        -0.011752079998469516
+      ],
+      [
+        0.2898826065149133,
+        -0.0421379107145537,
+        1.0,
+        0.7612978282645896
+      ],
+      [
+        0.4651830726385578,
+        -0.011752079998469517,
+        0.7612978282645896,
+        1.0
+      ]
+    ],
+    "training_within_run_lag1": {
+      "cpu_pre_runtime_s": 0.41320844449107164,
+      "gpu_runtime_s": -0.004198065649334801,
+      "cpu_post_locked_runtime_s": 0.6954574709663133,
+      "cpu_post_unlocked_runtime_s": 0.7066665965877174
+    },
+    "training_within_run_time_correlation": {
+      "cpu_pre_runtime_s": 0.30065217868853256,
+      "gpu_runtime_s": -0.06306211347455629,
+      "cpu_post_locked_runtime_s": 0.22627044021647494,
+      "cpu_post_unlocked_runtime_s": 0.4975189531366998
+    },
+    "joint_residual_block_length": 8
+  },
+  "gpu_heavy_n10": {
+    "phase_order": [
+      "cpu_pre_runtime_s",
+      "gpu_runtime_s",
+      "cpu_post_locked_runtime_s",
+      "cpu_post_unlocked_runtime_s"
+    ],
+    "training_phase_correlation": [
+      [
+        1.0,
+        -0.017405395717097195,
+        0.018147241790481994,
+        0.05576697820795659
+      ],
+      [
+        -0.017405395717097195,
+        0.9999999999999999,
+        0.04569702141271115,
+        0.0064113842860945
+      ],
+      [
+        0.018147241790481994,
+        0.04569702141271115,
+        1.0,
+        0.5243273253795439
+      ],
+      [
+        0.0557669782079566,
+        0.0064113842860945,
+        0.5243273253795439,
+        1.0
+      ]
+    ],
+    "training_within_run_lag1": {
+      "cpu_pre_runtime_s": 0.0845673272886001,
+      "gpu_runtime_s": -0.05109141535882277,
+      "cpu_post_locked_runtime_s": 0.2663702552359489,
+      "cpu_post_unlocked_runtime_s": 0.37570432080035276
+    },
+    "training_within_run_time_correlation": {
+      "cpu_pre_runtime_s": -0.056945863959660115,
+      "gpu_runtime_s": -0.007082191967784498,
+      "cpu_post_locked_runtime_s": -0.0964079997076401,
+      "cpu_post_unlocked_runtime_s": 0.3446291518921196
+    },
+    "joint_residual_block_length": 8
+  },
+  "gpu_heavy_n100": {
+    "phase_order": [
+      "cpu_pre_runtime_s",
+      "gpu_runtime_s",
+      "cpu_post_locked_runtime_s",
+      "cpu_post_unlocked_runtime_s"
+    ],
+    "training_phase_correlation": [
+      [
+        1.0,
+        0.018750369540603856,
+        0.08612839373159047,
+        0.11684203459838143
+      ],
+      [
+        0.018750369540603856,
+        0.9999999999999999,
+        0.03763790180944784,
+        0.02866532450798629
+      ],
+      [
+        0.08612839373159047,
+        0.03763790180944784,
+        1.0,
+        0.5863512426981858
+      ],
+      [
+        0.11684203459838141,
+        0.028665324507986287,
+        0.5863512426981857,
+        1.0
+      ]
+    ],
+    "training_within_run_lag1": {
+      "cpu_pre_runtime_s": 0.09673491589226425,
+      "gpu_runtime_s": -0.02087149270270251,
+      "cpu_post_locked_runtime_s": 0.6005450775702588,
+      "cpu_post_unlocked_runtime_s": 0.4650933265949321
+    },
+    "training_within_run_time_correlation": {
+      "cpu_pre_runtime_s": 0.010013675968474146,
+      "gpu_runtime_s": 0.018999565495946905,
+      "cpu_post_locked_runtime_s": 0.06726472009932892,
+      "cpu_post_unlocked_runtime_s": 0.46095846461963813
+    },
+    "joint_residual_block_length": 8
+  }
+}

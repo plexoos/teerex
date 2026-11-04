@@ -953,11 +953,82 @@ def run_study(root, draws=64, *, worker_counts=DEFAULT_WORKERS,
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=Path, required=True)
-    parser.add_argument("--draws", type=int, default=64)
-    parser.add_argument("--workers", type=int, nargs="+", default=DEFAULT_WORKERS)
-    parser.add_argument("--inflight-limits", type=int, nargs="+", default=DEFAULT_INFLIGHT)
+    parser = argparse.ArgumentParser(
+        description=(
+            "Fit Bayesian phase-duration models to measured runs and compare CPU/GPU\n"
+            "dispatch policies by offline replay. Speedups are simulated estimates.\n"
+            "\n"
+            "Replications 0 and 1 train the models, replication 2 selects the policy,\n"
+            "and replication 3 evaluates the frozen choice."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Policy search:\n"
+            "  Every worker count is paired with every in-flight limit for both\n"
+            "  synchronous and async replay, plus a one-worker/one-event blocking\n"
+            "  control. Among candidates within 5% of the best validation median\n"
+            "  makespan (total completion time), selection favors fewer workers,\n"
+            "  then less in-flight capacity, then policy name.\n"
+            "\n"
+            "Archive and outputs:\n"
+            "  Each runs/<run_id>/ needs run.json, events.csv, events.manifest.json,\n"
+            "  and simg4ox.stdout.log. Use the original measured-run archive; the\n"
+            "  bundled docs/study/ snapshot is insufficient for refitting.\n"
+            "  Each invocation writes a new analysis-<UTC timestamp> directory under\n"
+            "  ROOT_DIR/{datasets,models,figures,reports}/ and prints a JSON object\n"
+            "  with artifact paths and the selected policy. Raw runs stay unchanged.\n"
+            "\n"
+            "Examples:\n"
+            "  # Analyze the default resource grid with 64 predictive draws.\n"
+            "  study --root /path/to/teerex-study/drich-study-v2\n"
+            "\n"
+            "  # Quick exploratory run with fewer draws and a smaller grid.\n"
+            "  study --root /path/to/archive --draws 8 \\\n"
+            "    --workers 1 2 --inflight-limits 1 2 4\n"
+            "\n"
+            "See docs/bayesian-dispatch.md for input checks and model assumptions."
+        ),
+    )
+    parser.add_argument(
+        "--root", type=Path, required=True, metavar="ROOT_DIR",
+        help=(
+            "Measured-run archive containing runs/<run_id>/ (required). "
+            "Needs complete physics_production runs for replications 0, 1, 2, "
+            "and 3, with every measured condition represented in each split. "
+            "Derived artifacts are also written beneath this directory."
+        ),
+    )
+    parser.add_argument(
+        "--draws", type=int, default=64, metavar="N",
+        help=(
+            "Posterior predictive draws per replayed event stream; a positive "
+            "integer (default: %(default)s). Each draw samples event phase "
+            "durations; candidates share validation draws for comparison. "
+            "More draws reduce Monte Carlo noise in policy summaries and "
+            "increase runtime. Probability estimates have resolution 1/N."
+        ),
+    )
+    parser.add_argument(
+        "--workers", type=int, nargs="+", default=DEFAULT_WORKERS, metavar="COUNT",
+        help=(
+            "Candidate CPU worker-pool sizes in the simulated scheduler. "
+            "These control replay concurrency, not the number of analysis "
+            "processes. Supply distinct positive integers separated by spaces "
+            "(default: " + " ".join(map(str, DEFAULT_WORKERS)) + ")."
+        ),
+    )
+    parser.add_argument(
+        "--inflight-limits", type=int, nargs="+", default=DEFAULT_INFLIGHT,
+        metavar="EVENTS",
+        help=(
+            "Candidate caps on admitted but unfinished events, including CPU "
+            "work, GPU queue/service, and post-processing. Async replay can have "
+            "more events in flight than workers; synchronous replay is also "
+            "capped by the worker count. Supply distinct positive integers "
+            "separated by spaces (default: "
+            + " ".join(map(str, DEFAULT_INFLIGHT)) + ")."
+        ),
+    )
     args = parser.parse_args(argv)
     result = run_study(args.root, args.draws, worker_counts=args.workers,
                        inflight_limits=args.inflight_limits)

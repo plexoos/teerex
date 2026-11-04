@@ -19,7 +19,7 @@ dependencies = [
 [project.scripts]
 simload = "teerex.simload:main"
 simload-ray = "teerex.simload_ray:main"
-teerex-study = "teerex.study:main"
+study = "teerex.study:main"
 
 [build-system]
 requires = ["setuptools", "wheel"]

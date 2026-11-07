@@ -3,11 +3,28 @@ It combines a synthetic scheduling experiment, measured Simphony timelines,
 Bayesian phase-duration models, and offline policy replay.
 
 The current question is how much CPU concurrency and work in flight are needed
-to feed the GPU while controlling queueing and completion latency. The study now
-uses the ratio-study-v3 production sample: 22,000 retained events across dRICH,
-pfRICH, balanced argon, and two GPU-heavy argon conditions. Each workload has a
-separate fitted model and validation-selected policy. Predicted asynchronous
-gains remain estimates to validate in an executor.
+to feed the GPU while controlling completion time and CPU allocation cost. The
+current timeline CSV contains 14,000 electron events across seven dRICH, pfRICH,
+and argon conditions. The older saved study artifacts describe a broader
+22,000-event snapshot and no longer match that CSV. Predicted asynchronous gains
+remain estimates to validate in an executor.
+
+## Bayesian allocation on an unfamiliar machine
+
+```bash
+uv run marimo edit notebooks/bayesian_dispatch.py
+```
+
+The [adaptive dispatch notebook](notebooks/bayesian_dispatch.py) starts with the
+problem and mathematics, trains directly on the current CSV, and learns CPU/GPU
+speed and contention corrections from completed batches. It compares fixed,
+source-only, and two Bayesian allocation policies on matched held-out event
+blocks. Interactive controls, posterior histories, candidate costs, and phase
+timelines make each decision inspectable.
+
+Measured replay, synthetic hardware transfer, and burst/contention stress are
+reported separately. The notebook discusses which additional physics and hardware
+measurements are needed. It uses the existing Python dependencies and needs no GPU.
 
 ## Start with the study notebook
 

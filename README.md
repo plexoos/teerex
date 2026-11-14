@@ -39,6 +39,8 @@ measured 1/2/4/8-worker runs across seven workloads and four seed pairs. Its
 [bundled CSV snapshot](docs/mt-study/README.md) preserves all 57,792 raw events,
 56,000 retained events, run summaries, and timing caveats without requiring
 the external measurement archive or a GPU.
+The [MT findings and scaling plots](docs/mt-study/FINDINGS.md) explain the
+measured gains, GPU-gate saturation, and the anomalous serial control.
 
 ```bash
 PYTHONPATH=. uv run --with plotly marimo edit notebooks/mt_timelines.py

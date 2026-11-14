@@ -3,6 +3,8 @@
 This portable snapshot accompanies [mt_timelines.py](../../notebooks/mt_timelines.py).
 It preserves the completed `charged-mt-study-v1` campaign's exported CSV bytes,
 including every warm-up event and timing tail. No slow events are removed.
+Read the [findings and scaling plots](FINDINGS.md) for the results, and the
+[cleanup diagnostics](DIAGNOSTICS.md) for the anomalous serial control and repeat.
 
 | Coverage | Definition |
 |---|---|
@@ -32,6 +34,11 @@ The manifest records the exact commits, device, coverage, and file hashes.
 - `confirmation-summary.csv`: a separate three-run dRICH repeat, excluded from
   the primary matrix and notebook's main statistics.
 - `verification.json`: the original campaign's verification record.
+- `figures/`: scaling plots relative to serial and two-worker MT controls.
+- `telemetry.csv` and `confirmation-telemetry.csv`: primary and repeat GPU/host
+  samples, including dirty pages and writeback counters.
+- `confirmation-verification.json`: the separate repeat's verification record.
+- `warmup-differences.json`: raw initial-event count differences across MT workers.
 - `manifest.json`: SHA256/size for the copied evidence files and source provenance.
 
 From the repository root:

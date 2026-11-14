@@ -1,0 +1,7 @@
+{
+  "status": "verified",
+  "runs": 3,
+  "raw_events": 1548,
+  "retained_events": 1500,
+  "comparison": "Serial raw counts, MT retained counts, and all retained hit hashes match the corresponding primary runs; no primary data replaced"
+}

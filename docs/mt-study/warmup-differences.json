@@ -1,0 +1,178 @@
+{
+  "pfrich_n10_t8_r0": [],
+  "pfrich_n10_t4_r0": [],
+  "pfrich_n100_t8_r0": [],
+  "pfrich_n100_t4_r0": [],
+  "drich_n10_t8_r0": [],
+  "drich_n10_t4_r0": [],
+  "drich_n100_t8_r0": [],
+  "drich_n100_t4_r0": [],
+  "argon_balanced_t8_r0": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "argon_balanced_t4_r0": [
+    2,
+    3
+  ],
+  "argon_gpu_n10_t8_r0": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "argon_gpu_n10_t4_r0": [
+    2,
+    3
+  ],
+  "argon_gpu_n100_t8_r0": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "argon_gpu_n100_t4_r0": [
+    2,
+    3
+  ],
+  "argon_gpu_n100_t4_r1": [
+    2,
+    3
+  ],
+  "argon_gpu_n100_t8_r1": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "argon_gpu_n10_t4_r1": [
+    2,
+    3
+  ],
+  "argon_gpu_n10_t8_r1": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "argon_balanced_t4_r1": [
+    2,
+    3
+  ],
+  "argon_balanced_t8_r1": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "drich_n100_t4_r1": [],
+  "drich_n100_t8_r1": [],
+  "drich_n10_t4_r1": [],
+  "drich_n10_t8_r1": [],
+  "pfrich_n100_t4_r1": [],
+  "pfrich_n100_t8_r1": [],
+  "pfrich_n10_t4_r1": [],
+  "pfrich_n10_t8_r1": [],
+  "pfrich_n10_t4_r2": [],
+  "pfrich_n10_t8_r2": [],
+  "pfrich_n100_t4_r2": [],
+  "pfrich_n100_t8_r2": [],
+  "drich_n10_t4_r2": [],
+  "drich_n10_t8_r2": [],
+  "drich_n100_t4_r2": [],
+  "drich_n100_t8_r2": [],
+  "argon_balanced_t4_r2": [
+    2,
+    3
+  ],
+  "argon_balanced_t8_r2": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "argon_gpu_n10_t4_r2": [
+    2,
+    3
+  ],
+  "argon_gpu_n10_t8_r2": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "argon_gpu_n100_t4_r2": [
+    2,
+    3
+  ],
+  "argon_gpu_n100_t8_r2": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "argon_gpu_n100_t8_r3": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "argon_gpu_n100_t4_r3": [
+    2,
+    3
+  ],
+  "argon_gpu_n10_t8_r3": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "argon_gpu_n10_t4_r3": [
+    2,
+    3
+  ],
+  "argon_balanced_t8_r3": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "argon_balanced_t4_r3": [
+    2,
+    3
+  ],
+  "drich_n100_t8_r3": [],
+  "drich_n100_t4_r3": [],
+  "drich_n10_t8_r3": [],
+  "drich_n10_t4_r3": [],
+  "pfrich_n100_t8_r3": [],
+  "pfrich_n100_t4_r3": [],
+  "pfrich_n10_t8_r3": [],
+  "pfrich_n10_t4_r3": []
+}

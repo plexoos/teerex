@@ -96,6 +96,36 @@
       "source": "confirmation/summary.csv",
       "sha256": "ff2704bbcf9465e7a042ffc5e50aaaee4ac3885eb8ea44bcb7b7176516e3ceb8",
       "bytes": 1581
+    },
+    "figures/scaling.png": {
+      "source": "production/scaling.png",
+      "sha256": "21bc86818bcee22b8d549fe60a9be41583c43dfc3d08bbbeb152351da1fbe3e3",
+      "bytes": 294072
+    },
+    "figures/mt-scaling.png": {
+      "source": "production/mt-scaling.png",
+      "sha256": "86d738066b8890a4ca363c7290f1b7032c4473f521a7d099186ba8f548a4390f",
+      "bytes": 274490
+    },
+    "telemetry.csv": {
+      "source": "production/telemetry.csv",
+      "sha256": "8eedb6b5eabc4ca0f1f5f6434f07ebe14163f43bb4f9d4fc9656772ada64fb76",
+      "bytes": 759809
+    },
+    "confirmation-telemetry.csv": {
+      "source": "confirmation/telemetry.csv",
+      "sha256": "7c7a2cd771d3cc778eb82465690983dd117a826f5b0bd3be8b9bcae3fcf5c19b",
+      "bytes": 2244
+    },
+    "confirmation-verification.json": {
+      "source": "confirmation/status.json",
+      "sha256": "9fd5e919a20a89838f3c087fed8a585932b6826c722288593f500f10d3f21de3",
+      "bytes": 238
+    },
+    "warmup-differences.json": {
+      "source": "production/warmup-differences.json",
+      "sha256": "b93277e5dae6e5f0a18b3978819a3e1c22877b14f66cd4d2a8866e088636f81b",
+      "bytes": 2267
     }
   }
 }

@@ -1,0 +1,101 @@
+{
+  "campaign": "charged-mt-study-v1",
+  "schema_version": 1,
+  "source_commits": {
+    "simphony": "2c878526827c8d02aa48dbc8a83063c19e593272",
+    "teerex": "81de2cb8b85082954731075d6aacf56650d1c30e"
+  },
+  "coverage": {
+    "runs": 112,
+    "raw_events": 57792,
+    "retained_events": 56000,
+    "warmup_events_per_run": 16,
+    "retained_events_per_run": 500,
+    "workers": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "seed_pairs": [
+      [
+        50111,
+        2100011
+      ],
+      [
+        60223,
+        2200033
+      ],
+      [
+        70339,
+        2300051
+      ],
+      [
+        80447,
+        2400077
+      ]
+    ]
+  },
+  "hardware": {
+    "cpu": "Intel Xeon w7-3445",
+    "cpu_affinity": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "gpu": "NVIDIA RTX 4090",
+    "gpu_uuid": "GPU-3f53fc58-1093-aa54-47f7-524d97949ca8",
+    "exclusive": false
+  },
+  "source_verification": "Copied bytes match the verified campaign artifact manifest; the full hit arrays and runtime are held in the original archive.",
+  "files": {
+    "events-raw.csv.gz": {
+      "source": "production/events-raw.csv.gz",
+      "sha256": "3be975a5d96579bbbb5520d4769d389b90119157050d5dc25ffae4b137bacfde",
+      "bytes": 12386643
+    },
+    "run-summary.csv": {
+      "source": "production/run-summary.csv",
+      "sha256": "858f10b23a5650cec0e5c465daaa9ff9c79e4114fe0a2bdf902ce219edc70928",
+      "bytes": 46207
+    },
+    "summary.csv": {
+      "source": "production/summary.csv",
+      "sha256": "4e78a58c29fc5427c495dc5874c20ba4b24a371621933a482dcd14e5178e3a32",
+      "bytes": 5493
+    },
+    "sensitivity.csv": {
+      "source": "production/sensitivity.csv",
+      "sha256": "c67c37de04e5cac2cd201f9627ff5265a48525f329edc14fe5a7978a062098b4",
+      "bytes": 375804
+    },
+    "slow-cleanup.csv": {
+      "source": "production/slow-cleanup.csv",
+      "sha256": "89b90d2499e2c3864196b55af41af619d78e5310dd5961aebba82f3a5c0a66ff",
+      "bytes": 6466
+    },
+    "verification.json": {
+      "source": "production/verification.json",
+      "sha256": "310e8212d61b81a2d325c7f0fa070df0b9985890827f010b0bec0bf57d1d21fe",
+      "bytes": 1306
+    },
+    "confirmation-summary.csv": {
+      "source": "confirmation/summary.csv",
+      "sha256": "ff2704bbcf9465e7a042ffc5e50aaaee4ac3885eb8ea44bcb7b7176516e3ceb8",
+      "bytes": 1581
+    }
+  }
+}

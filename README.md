@@ -34,6 +34,16 @@ PYTHONPATH=. uv run python scripts/refresh_ratio_study.py --verify
 
 ## Documentation
 
+The [multithreaded Geant4 timeline notebook](notebooks/mt_timelines.py) compares
+measured 1/2/4/8-worker runs across seven workloads and four seed pairs. Its
+[bundled CSV snapshot](docs/mt-study/README.md) preserves all 57,792 raw events,
+56,000 retained events, run summaries, and timing caveats without requiring
+the external measurement archive or a GPU.
+
+```bash
+PYTHONPATH=. uv run --with plotly marimo edit notebooks/mt_timelines.py
+```
+
 - [Current study: measurements, results, and next questions](docs/study.md)
 - [Bayesian model, replay semantics, and study CLI](docs/bayesian-dispatch.md)
 - [Synthetic Simload: quick start, modes, configuration, CSV, and Ray variant](docs/simload.md)

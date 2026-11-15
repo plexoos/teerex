@@ -59,6 +59,13 @@ seed indices 0–3, and 16-event warm-up convention. Preserve separate `run_id` 
 when replacing raw measurements; do not combine fresh events with stale summaries.
 The notebook displays the saved analysis rather than regenerating those tables.
 
+Timeline panels show all 516 recorded events, from event 0 through the final
+cleanup, including the 16 warm-up events. Each process starts its display clock
+at its earliest recorded CPU-generation start. No events or phase durations are
+cut. Drag horizontally to zoom into startup or later events, double-click to
+restore the full run, and hover for exact event timing. Scaling summaries and
+duration distributions continue to use the 500 retained events per run.
+
 The HTML export is a snapshot; changing notebook controls requires running
 Marimo. This commit does not add the notebook to the GitHub Pages build.
 

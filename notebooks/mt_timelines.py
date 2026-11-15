@@ -50,7 +50,8 @@ def _(events, mo, runs):
 
     **Measured dataset:** {len(runs)} process runs, {len(events):,} raw events,
     {int(runs.analysis_events.sum()):,} retained events, and {runs.replication.nunique()} seed pairs.
-    Each run excludes 16 initial events from its main summary. All raw events remain available.
+    Timelines show every recorded event, starting at event 0, including the 16 initial warm-up events.
+    The scaling summaries and duration distributions below use the 500 retained events per run.
 
     These measurements repeat seven electron workloads at **1, 2, 4, and 8 workers**.
     RICH primaries use **20 GeV/c**. The DUNE mock liquid-argon workloads use 65,536 electrons
@@ -71,15 +72,12 @@ def _(labels, mo, runs):
     workload = mo.ui.dropdown(labels, value='dRICH · 100 primaries', label='Workload')
     replication = mo.ui.dropdown({f'Seed pair {int(x)+1}':int(x) for x in sorted(runs.replication.unique())},
                                  value='Seed pair 1', label='Replication')
-    count = mo.ui.slider(start=4,stop=32,step=4,value=16,label='Completion intervals')
-    start_event = mo.ui.number(start=1,stop=int(runs.analysis_events.min())-16,value=16,
-                               label='First event ID (16 starts retained data)')
-    mo.hstack([workload,replication,count,start_event],justify='start',gap=2)
-    return count, replication, start_event, workload
+    mo.hstack([workload,replication],justify='start',gap=2)
+    return replication, workload
 
 
 @app.cell(hide_code=True)
-def _(count, events, go, make_subplots, mo, replication, start_event, workload):
+def _(events, go, make_subplots, mo, replication, workload):
     chosen = events.loc[events.workload.eq(workload.value)&events.replication.eq(replication.value)]
     _threads = sorted(chosen.num_threads.unique())
     timeline = make_subplots(rows=len(_threads),cols=1,vertical_spacing=.07,
@@ -87,11 +85,9 @@ def _(count, events, go, make_subplots, mo, replication, start_event, workload):
     for _index,_n in enumerate(_threads,start=1):
         _run=chosen.loc[chosen.num_threads.eq(_n)].sort_values('event_id')
         mo.stop(_run.run_id.nunique()!=1,mo.callout('A timeline must contain one process only.',kind='danger'))
-        _first=int(start_event.value)
-        _last=min(_first+int(count.value)-1,int(_run.event_id.max()))
-        _lo=float(_run.loc[_run.event_id.eq(_first-1),'gpu_release_time_offset_s'].iloc[0])
-        _hi=float(_run.loc[_run.event_id.eq(_last),'gpu_release_time_offset_s'].iloc[0])
-        _visible=_run.loc[_run.end_offset_s.gt(_lo)&_run.start_offset_s.lt(_hi)]
+        _lo=float(_run.cpu_pre_start_time_offset_s.min())
+        _hi=float(_run.end_offset_s.max())
+        _workers=[f'Worker {w}' if w>=0 else 'Serial CPU' for w in _run.worker_id]
         _phases=[
             ('cpu_pre_start_time_offset_s','cpu_pre_end_time_offset_s','CPU generation','#1f77b4',False),
             ('gpu_submit_time_offset_s','gpu_start_time_offset_s','GPU queue wait','#aeb8c4',False),
@@ -101,22 +97,31 @@ def _(count, events, go, make_subplots, mo, replication, start_event, workload):
             ('gpu_end_time_offset_s','gpu_release_time_offset_s','Gate held for cleanup','#9467bd',True),
         ]
         for _a,_b,_name,_color,_gpu in _phases:
-            _starts=_visible[_a].clip(lower=_lo,upper=_hi)
-            _ends=_visible[_b].clip(lower=_lo,upper=_hi)
-            _valid=_ends.gt(_starts)
-            _rows=_visible.loc[_valid]
-            _lanes=['GPU gate']*len(_rows) if _gpu else [f'Worker {w}' if w>=0 else 'Serial CPU' for w in _rows.worker_id]
+            _starts=(_run[_a]-_lo)*1000
+            _ends=(_run[_b]-_lo)*1000
+            _durations=(_run[_b]-_run[_a])*1000
+            _lanes=['GPU gate']*len(_run) if _gpu else _workers
             timeline.add_trace(go.Bar(
-                orientation='h',x=((_ends-_starts)[_valid]*1000).tolist(),base=((_starts[_valid]-_lo)*1000).tolist(),
+                orientation='h',x=_durations.tolist(),base=_starts.tolist(),
                 y=_lanes,name=_name,marker_color=_color,width=.65,legendgroup=_name,showlegend=_index==1,
-                customdata=_rows.event_id.tolist(),hovertemplate='Event %{customdata}<br>%{x:.3f} ms<extra>%{fullData.name}</extra>'),
+                customdata=list(zip(_run.event_id,_starts,_ends,_workers,_durations)),
+                hovertemplate='Event %{customdata[0]} · %{customdata[3]}<br>'
+                              'Start: %{customdata[1]:.6f} ms<br>End: %{customdata[2]:.6f} ms<br>'
+                              'Duration: %{customdata[4]:.6f} ms<extra>%{fullData.name}</extra>'),
                 row=_index,col=1)
         _lanes=['GPU gate']+(['Serial CPU'] if _n==1 else [f'Worker {w}' for w in range(_n)])
         timeline.update_yaxes(categoryorder='array',categoryarray=_lanes,fixedrange=True,row=_index,col=1)
-        timeline.update_xaxes(title_text='Elapsed from previous completion in this process (ms)' if _index==len(_threads) else '',range=[0,(_hi-_lo)*1000],row=_index,col=1)
-    timeline.update_layout(template='plotly_white',height=1100,barmode='overlay',dragmode='pan',
+        timeline.update_xaxes(title_text='Elapsed from first recorded CPU start in this process (ms)' if _index==len(_threads) else '',range=[0,(_hi-_lo)*1000],row=_index,col=1)
+    timeline.update_layout(template='plotly_white',height=1100,barmode='overlay',dragmode='zoom',
                            legend=dict(orientation='h',y=1.08),margin=dict(l=80,r=30,t=100,b=50))
-    mo.vstack([mo.md('## Worker timelines\n\nEach panel uses its own run-local clock and time range. Intervals crossing a window edge are clipped; raw neighboring events remain visible.'),timeline])
+    mo.vstack([mo.md('''## Worker timelines
+
+    Each panel shows all 516 recorded events (IDs 0–515), including warm-up and the final cleanup.
+    Zero is the earliest recorded CPU-generation start in that process; initialization before that
+    timestamp is outside the recorded event timeline. Each process has its own clock and time range.
+    No events or phase durations are cut. Drag horizontally to zoom into startup or later events;
+    double-click to restore the full run. Hover for event ID, worker, start, end, and full duration.
+    '''),timeline])
     return
 
 

@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 NOTEBOOKS = {
     "simload": "Production ratio study",
     "ratio_timelines": "Measured CPU/GPU timelines",
+    "mt_timelines": "Measured multithreaded Geant4 timelines",
 }
 
 
@@ -20,8 +21,8 @@ def main():
     site = ROOT / "_site"
     shutil.rmtree(site, ignore_errors=True)
     with tempfile.TemporaryDirectory(prefix="teerex-pages-") as temporary:
-        evidence = ROOT / "docs" / "study"
         for name in NOTEBOOKS:
+            evidence = ROOT / "docs" / ("mt-study" if name == "mt_timelines" else "study")
             source = Path(temporary) / name
             package = source / "teerex"
             package.mkdir(parents=True)
@@ -37,8 +38,11 @@ def main():
                     for path in sorted(evidence.iterdir()):
                         if path.suffix in {".csv", ".json", ".gz"}:
                             snapshot.write(path, path.name)
-            else:
+            elif name == "ratio_timelines":
                 shutil.copy2(evidence / "events.csv.gz", public)
+            else:
+                for filename in ("events-raw.csv.gz", "run-summary.csv", "summary.csv", "sensitivity.csv"):
+                    shutil.copy2(evidence / filename, public)
 
             notebook = source / f"{name}.py"
             shutil.copy2(ROOT / "notebooks" / notebook.name, notebook)

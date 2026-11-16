@@ -41,6 +41,8 @@ measured 1/2/4/8-worker runs across seven workloads and four seed pairs. Its
 the external measurement archive or a GPU.
 The [MT findings and scaling plots](docs/mt-study/FINDINGS.md) explain the
 measured gains, GPU-gate saturation, and the anomalous serial control.
+The [browser version](https://plexoos.github.io/teerex/mt_timelines/) runs
+interactively without a local Python installation.
 
 ```bash
 PYTHONPATH=. uv run --with plotly marimo edit notebooks/mt_timelines.py

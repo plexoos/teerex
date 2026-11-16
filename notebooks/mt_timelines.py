@@ -9,16 +9,28 @@ app = marimo.App(width='full', app_title='Measured multithreaded Geant4 timeline
 
 
 @app.cell(hide_code=True)
-def _():
+async def _():
     import os
+    import sys
     from pathlib import Path
     import marimo as mo
     import pandas as pd
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
     from teerex.analysis import read_one_csv
-    root = Path(__file__).resolve().parents[1]
-    directory = Path(os.environ.get('TEEREX_MT_DATA_DIR', str(root/'docs/mt-study'))).expanduser()
+    if sys.platform == 'emscripten':
+        from pyodide.http import pyfetch
+
+        directory = Path('/tmp/teerex-mt-study')
+        directory.mkdir(exist_ok=True)
+        for _filename in ('events-raw.csv.gz', 'run-summary.csv', 'summary.csv', 'sensitivity.csv'):
+            _response = await pyfetch(str(mo.notebook_location() / 'public' / _filename))
+            if not _response.ok:
+                raise RuntimeError(f'Could not load MT evidence {_filename}: HTTP {_response.status}')
+            (directory / _filename).write_bytes(await _response.bytes())
+    else:
+        root = Path(__file__).resolve().parents[1]
+        directory = Path(os.environ.get('TEEREX_MT_DATA_DIR', str(root/'docs/mt-study'))).expanduser()
     labels = {
         'pfRICH · 10 primaries':'pfrich_n10', 'pfRICH · 100 primaries':'pfrich_n100',
         'dRICH · 10 primaries':'drich_n10', 'dRICH · 100 primaries':'drich_n100',
@@ -50,7 +62,7 @@ def _(events, mo, runs):
 
     **Measured dataset:** {len(runs)} process runs, {len(events):,} raw events,
     {int(runs.analysis_events.sum()):,} retained events, and {runs.replication.nunique()} seed pairs.
-    Timelines show every recorded event, starting at event 0, including the 16 initial warm-up events.
+    Timelines include every recorded event, starting at event 0, including the 16 initial warm-up events.
     The scaling summaries and duration distributions below use the 500 retained events per run.
 
     These measurements repeat seven electron workloads at **1, 2, 4, and 8 workers**.
@@ -68,6 +80,43 @@ def _(events, mo, runs):
 
 
 @app.cell(hide_code=True)
+def _(events, labels, mo, pd):
+    _rows = []
+    for _label,_key in labels.items():
+        for _workers,_raw in events.loc[events.workload.eq(_key)].groupby('num_threads',sort=True):
+            _retained=_raw.loc[~_raw.is_warmup]
+            _cpu=_retained.cpu_pre_runtime_s+_retained.cpu_post_runtime_s
+            _gpu=_retained.gpu_runtime_s
+            _rows.append({
+                'Workload':_label,
+                'Workers':int(_workers),
+                'Raw events':len(_raw),
+                'Retained events':len(_retained),
+                'Seed pairs':_raw.replication.nunique(),
+                'Mean photons/event':round(_retained.num_photons.mean()),
+                'Median CPU (ms)':_cpu.median()*1000,
+                'Median GPU (ms)':_gpu.median()*1000,
+                'Median CPU:GPU':(_cpu/_gpu).median(),
+                'Median GPU share (%)':(_gpu/(_cpu+_gpu)).median()*100,
+            })
+    configuration_summary=pd.DataFrame(_rows)
+    mo.vstack([
+        mo.md('''## Configuration summary
+
+        All seven workloads and four worker counts are listed here, with all four seed pairs
+        contributing to each row. Raw counts include warm-up; timing and photon statistics use
+        the retained events. Changing the workload, replication, or timeline window does not
+        change this table. CPU is generation plus cleanup wall time; GPU is host-observed service.
+        CPU:GPU is the median of event-wise ratios. GPU share is the median of
+        100 × GPU / (CPU + GPU), excludes queue waiting, and is not GPU utilization.
+        '''),
+        mo.ui.table(configuration_summary.round(3),selection=None,page_size=len(configuration_summary),
+                    show_column_summaries=False),
+    ])
+    return (configuration_summary,)
+
+
+@app.cell(hide_code=True)
 def _(labels, mo, runs):
     workload = mo.ui.dropdown(labels, value='dRICH · 100 primaries', label='Workload')
     replication = mo.ui.dropdown({f'Seed pair {int(x)+1}':int(x) for x in sorted(runs.replication.unique())},
@@ -77,16 +126,18 @@ def _(labels, mo, runs):
 
 
 @app.cell(hide_code=True)
-def _(events, go, make_subplots, mo, replication, workload):
+def _(events, go, mo, replication, workload):
     chosen = events.loc[events.workload.eq(workload.value)&events.replication.eq(replication.value)]
     _threads = sorted(chosen.num_threads.unique())
-    timeline = make_subplots(rows=len(_threads),cols=1,vertical_spacing=.07,
-                             subplot_titles=[f'{n} Geant4 worker'+('' if n==1 else 's') for n in _threads])
-    for _index,_n in enumerate(_threads,start=1):
+    timeline_figures = []
+    _blocks = []
+    for _n in _threads:
         _run=chosen.loc[chosen.num_threads.eq(_n)].sort_values('event_id')
         mo.stop(_run.run_id.nunique()!=1,mo.callout('A timeline must contain one process only.',kind='danger'))
         _lo=float(_run.cpu_pre_start_time_offset_s.min())
         _hi=float(_run.end_offset_s.max())
+        _initial_end_ms=float((_run.head(10).end_offset_s.max()-_lo)*1000)
+        _figure=go.Figure()
         _workers=[f'Worker {w}' if w>=0 else 'Serial CPU' for w in _run.worker_id]
         _phases=[
             ('cpu_pre_start_time_offset_s','cpu_pre_end_time_offset_s','CPU generation','#1f77b4',False),
@@ -101,28 +152,41 @@ def _(events, go, make_subplots, mo, replication, workload):
             _ends=(_run[_b]-_lo)*1000
             _durations=(_run[_b]-_run[_a])*1000
             _lanes=['GPU gate']*len(_run) if _gpu else _workers
-            timeline.add_trace(go.Bar(
+            _figure.add_trace(go.Bar(
                 orientation='h',x=_durations.tolist(),base=_starts.tolist(),
-                y=_lanes,name=_name,marker_color=_color,width=.65,legendgroup=_name,showlegend=_index==1,
+                y=_lanes,name=_name,marker_color=_color,width=.65,legendgroup=_name,
                 customdata=list(zip(_run.event_id,_starts,_ends,_workers,_durations)),
                 hovertemplate='Event %{customdata[0]} · %{customdata[3]}<br>'
                               'Start: %{customdata[1]:.6f} ms<br>End: %{customdata[2]:.6f} ms<br>'
-                              'Duration: %{customdata[4]:.6f} ms<extra>%{fullData.name}</extra>'),
-                row=_index,col=1)
+                              'Duration: %{customdata[4]:.6f} ms<extra>%{fullData.name}</extra>'))
         _lanes=['GPU gate']+(['Serial CPU'] if _n==1 else [f'Worker {w}' for w in range(_n)])
-        timeline.update_yaxes(categoryorder='array',categoryarray=_lanes,fixedrange=True,row=_index,col=1)
-        timeline.update_xaxes(title_text='Elapsed from first recorded CPU start in this process (ms)' if _index==len(_threads) else '',range=[0,(_hi-_lo)*1000],row=_index,col=1)
-    timeline.update_layout(template='plotly_white',height=1100,barmode='overlay',dragmode='zoom',
-                           legend=dict(orientation='h',y=1.08),margin=dict(l=80,r=30,t=100,b=50))
+        _figure.update_layout(
+            template='plotly_white',height=max(350,220+35*len(_lanes)),barmode='overlay',dragmode='pan',
+            legend=dict(orientation='h',y=1.08),margin=dict(l=80,r=30,t=80,b=50),
+            xaxis=dict(
+                title='Elapsed from first recorded CPU start in this process (ms)',
+                range=[0,_initial_end_ms],minallowed=0,
+                rangeslider=dict(visible=True,thickness=.18,range=[0,(_hi-_lo)*1000]),
+            ),
+            yaxis=dict(categoryorder='array',categoryarray=_lanes,fixedrange=True),
+        )
+        timeline_figures.append(_figure)
+        _blocks.append(mo.vstack([
+            mo.md(f"### {_n} Geant4 worker"+('' if _n==1 else 's')),
+            mo.ui.plotly(_figure),
+        ]))
     mo.vstack([mo.md('''## Worker timelines
 
-    Each panel shows all 516 recorded events (IDs 0–515), including warm-up and the final cleanup.
+    Each plot contains all 516 recorded events (IDs 0–515), including warm-up and the final cleanup,
+    and opens on the time span through the first 10 events starting at event 0.
+    CPU work for later events can overlap that span. Use the range slider below each plot
+    to select a few early events, inspect later events, or expand to the full run. Drag to pan
+    or use the toolbar to zoom; changing the view does not filter the data or change the statistics.
     Zero is the earliest recorded CPU-generation start in that process; initialization before that
     timestamp is outside the recorded event timeline. Each process has its own clock and time range.
-    No events or phase durations are cut. Drag horizontally to zoom into startup or later events;
-    double-click to restore the full run. Hover for event ID, worker, start, end, and full duration.
-    '''),timeline])
-    return
+    Hover for event ID, worker, start, end, and full duration.
+    '''),*_blocks])
+    return (timeline_figures,)
 
 
 @app.cell(hide_code=True)
@@ -174,7 +238,7 @@ def _(events, go, histogram_threads, make_subplots, mo, workload):
 @app.cell(hide_code=True)
 def _(mo, sensitivity, summary, workload):
     mo.vstack([
-        mo.md('## All workloads\n\nOccupancy is an interval union clipped to the same completion window. Ranges describe run-to-run variation, not confidence intervals.'),
+        mo.md('## Throughput and occupancy across workloads\n\nOccupancy is an interval union clipped to the same completion window. Ranges describe run-to-run variation, not confidence intervals.'),
         mo.ui.table(summary.round(4),selection=None,show_column_summaries=False),
         mo.md('## Warm-up and drain sensitivity\n\nCompare cutoffs of 8, 16, and 32 initial events and exclusions of 0, 8, and 16 final events. Raw warm-up history is preserved.'),
         mo.ui.table(sensitivity.loc[sensitivity.workload.eq(workload.value),

@@ -1,0 +1,85 @@
+<!doctype html>
+<!-- Static card gallery adapted from marimo's official GitHub Pages template:
+     https://github.com/marimo-team/marimo-gh-pages-template/blob/main/templates/index.html.j2 -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Teerex notebooks</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background: #fff;
+    }
+    .container { max-width: 1100px; margin: 0 auto; }
+    header {
+      padding: 28px 20px;
+      margin-bottom: 24px;
+      text-align: center;
+      background: #f0f0f0;
+      border-radius: 8px;
+    }
+    .logo { width: 100px; height: auto; }
+    h1 { margin: 12px 0 4px; font-size: 26px; }
+    .subtitle { margin: 0; color: #555; }
+    .cards { display: flex; flex-wrap: wrap; gap: 20px; }
+    .card {
+      flex: 1 1 280px;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      background: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .card-header {
+      margin: 0;
+      padding: 18px;
+      font-size: 18px;
+      line-height: 1.5;
+      background: #eee;
+    }
+    .card-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 20px;
+      padding: 18px;
+    }
+    code { font-size: 13px; overflow-wrap: anywhere; }
+    .card-link {
+      margin-top: auto;
+      padding: 8px 14px;
+      border-radius: 4px;
+      background: #285fb6;
+      color: white;
+      text-decoration: none;
+    }
+    .card-link:hover { background: #1c478a; }
+    a:focus-visible { outline: 3px solid #258c50; outline-offset: 4px; }
+    footer { margin-top: 32px; text-align: center; color: #555; font-size: 14px; }
+    footer a { color: #285fb6; }
+    @media (max-width: 600px) { body { padding: 16px; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <img class="logo" src="https://raw.githubusercontent.com/marimo-team/marimo/main/docs/_static/marimo-logotype-thick.svg" alt="marimo">
+      <h1>Teerex notebooks</h1>
+      <p class="subtitle">Explore measured CPU/GPU event timelines.</p>
+    </header>
+    <main class="cards" aria-label="Timeline notebooks">
+      $cards
+    </main>
+    <footer>Built with <a href="https://marimo.io">marimo</a> · Interactive Python notebooks</footer>
+  </div>
+</body>
+</html>

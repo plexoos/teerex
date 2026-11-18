@@ -6,6 +6,10 @@ snapshot of `teerex-study/ratio-study-v3/all-production-events.csv`. It contains
 four replications/condition, and 500 retained events/process (IDs 5–504).
 No additional warm-up removal, tail trimming, or outlier filtering is applied.
 
+The [single-worker timeline notebook](../../notebooks/timelines_single_worker.py)
+shows the seven electron workloads by filtering its view of this shared snapshot.
+The snapshot retains the muon events required by the frozen Simload replay streams.
+
 | Workload | Conditions | Events | Definition |
 | --- | ---: | ---: | --- |
 | dRICH | 4 | 8,000 | e−/μ−, 20 GeV/c, 10/100 primaries |
@@ -20,6 +24,9 @@ asynchronous executor measurements were supplied with this export. The snapshot
 attests to the CSV's bytes and internal consistency, not those missing sources.
 
 ## Files
+
+The bundle is stored in [`data/single_worker/`](../../data/single_worker/).
+All filenames below are relative to that directory.
 
 - `events.csv.gz`: exact source CSV bytes after decompression, with every column,
   original run-local clock, seed, run identity, event identity, and timing tail.
@@ -53,7 +60,8 @@ PYTHONPATH=. uv run python scripts/refresh_ratio_study.py --verify
 uv run marimo edit notebooks/simload.py
 ```
 
-The source archive is read only. The refresh overwrites derived evidence here.
+The source archive is read only. The refresh overwrites derived evidence in
+`data/single_worker/`.
 The notebook and hosted WebAssembly version load the saved artifacts without
 refitting; neither needs CUDA, PyTorch, Ray, or access to the sibling archive.
 

@@ -973,7 +973,7 @@ def main(argv=None):
             "Archive and outputs:\n"
             "  Each runs/<run_id>/ needs run.json, events.csv, events.manifest.json,\n"
             "  and simg4ox.stdout.log. Use the original measured-run archive; the\n"
-            "  bundled docs/study/ snapshot is insufficient for refitting.\n"
+            "  bundled data/single_worker/ snapshot is insufficient for refitting.\n"
             "  Each invocation writes a new analysis-<UTC timestamp> directory under\n"
             "  ROOT_DIR/{datasets,models,figures,reports}/ and prints a JSON object\n"
             "  with artifact paths and the selected policy. Raw runs stay unchanged.\n"

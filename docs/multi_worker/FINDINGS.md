@@ -29,18 +29,18 @@ Each ratio pairs runs with the same seed labels. Serial and MT Geant4 initialize
 
 † The dRICH 10-primary range includes a delayed first-seed serial control. Its 24.71× ratio is not a clean scaling result. The other three primary seeds give 6.41–6.93×. A separate repeat of the affected seed gives 6.72×, with each repeat matching its corresponding primary history and no flagged cleanup stalls. All original runs remain in the primary statistics.
 
-![Scaling relative to the fresh serial controls](figures/scaling.png)
+![Scaling relative to the fresh serial controls](../../data/multi_worker/figures/scaling.png)
 
-![Scaling entirely within MT relative to two workers](figures/mt-scaling.png)
+![Scaling entirely within MT relative to two workers](../../data/multi_worker/figures/mt-scaling.png)
 
 The DUNE GPU gate is already occupied about 99.97–99.98% of the retained window at two workers. Increasing to eight workers adds essentially no throughput: median 8/2 ratios are 0.998, 0.997, and 0.998 for balanced, 10-primary, and 100-primary DUNE. Median queue waits at eight workers are about 1.71, 2.14, and 2.09 seconds respectively. These observations support a shared-gate bottleneck for the tested worker counts. Gate occupancy includes locked cleanup and is not hardware SM utilization.
 
-Throughput is `500 / (last retained GPU-gate release − event-15 GPU-gate release)`. CPU coverage, GPU service, gate occupancy, and CPU/GPU overlap use interval unions clipped to that same window. The [interactive notebook](../../notebooks/mt_timelines.py) shows generation, queue waiting, GPU calls, and cleanup on separate worker lanes, with each process on its own clock. Host-observed GPU service includes staging, transfers, and synchronization.
+Throughput is `500 / (last retained GPU-gate release − event-15 GPU-gate release)`. CPU coverage, GPU service, gate occupancy, and CPU/GPU overlap use interval unions clipped to that same window. The [interactive notebook](../../notebooks/timelines_multi_worker.py) shows generation, queue waiting, GPU calls, and cleanup on separate worker lanes, with each process on its own clock. Host-observed GPU service includes staging, transfers, and synchronization.
 
-Validation passed for all 112 runs and all 28 workload/seed groups. Fresh serial counts match the preserved serial histories on overlapping event IDs. Retained MT counts and GPU-hit hashes match across 2/4/8 workers. [Initial count differences](warmup-differences.json) occur only at raw event IDs 2–7 in 24 of the 56 comparisons against two workers; the predeclared 16-event warm-up excludes them. All raw records remain available.
+Validation passed for all 112 runs and all 28 workload/seed groups. Fresh serial counts match the preserved serial histories on overlapping event IDs. Retained MT counts and GPU-hit hashes match across 2/4/8 workers. [Initial count differences](../../data/multi_worker/warmup-differences.json) occur only at raw event IDs 2–7 in 24 of the 56 comparisons against two workers; the predeclared 16-event warm-up excludes them. All raw records remain available.
 
 Changing warm-up cutoffs to 8/16/32 and dropping 0/8/16 final events changes per-run throughput by −3.57% to +1.93% relative to the main window. Batch-span rates differ from completion rates by at most 1.60%. This supports the window definition, but it does not remove the cleanup-stall anomaly.
 
 The smallest pfRICH completion windows span only 0.304–0.767 seconds. Four seed pairs provide descriptive replication on a shared host, not a precise confidence interval or an isolated hardware limit. The earlier serial campaign used the other GPU, so historical wall-time comparisons are descriptive. This study measures synchronous workers and serialized GPU launches; it does not fit a Bayesian model or measure asynchronous dispatch.
 
-[Evidence and definitions](README.md) · [Run summaries](run-summary.csv) · [Sensitivity](sensitivity.csv) · [Cleanup diagnostics and confirmation](DIAGNOSTICS.md) · [Original campaign verification](verification.json)
+[Evidence and definitions](README.md) · [Run summaries](../../data/multi_worker/run-summary.csv) · [Sensitivity](../../data/multi_worker/sensitivity.csv) · [Cleanup diagnostics and confirmation](DIAGNOSTICS.md) · [Original campaign verification](../../data/multi_worker/verification.json)

@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-EVIDENCE = Path(__file__).resolve().parents[1] / "docs" / "mt-study"
+EVIDENCE = Path(__file__).resolve().parents[1] / "data" / "multi_worker"
 
 
 @pytest.fixture(scope="module")

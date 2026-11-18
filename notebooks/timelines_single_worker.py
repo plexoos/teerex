@@ -6,11 +6,11 @@
 import marimo
 
 __generated_with = "0.25.2"
-app = marimo.App(width="full", app_title="Measured CPU/GPU timelines")
+app = marimo.App(width="full", app_title="Geant4 CPU/GPU timelines: single worker")
 
 
 @app.cell(hide_code=True)
-async def _():
+def _():
     import os
     import sys
     from pathlib import Path
@@ -21,21 +21,19 @@ async def _():
     from plotly.subplots import make_subplots
 
     from teerex.analysis import read_one_csv
+    from teerex.notebook_data import relative_data_path, resolve_data_file
 
     if sys.platform == "emscripten":
-        from pyodide.http import pyfetch
-
-        _path = Path("/tmp/events.csv.gz")
-        _response = await pyfetch(str(mo.notebook_location() / "public" / _path.name))
-        if not _response.ok:
-            raise RuntimeError(f"Could not load production events: HTTP {_response.status}")
-        _path.write_bytes(await _response.bytes())
-        default_csv = str(_path)
+        browser_base = str(mo.notebook_location())
+        data_root = Path("/tmp/teerex-timeline-inputs")
+        default_csv = "public/events.csv.gz"
     else:
-        _path = Path(__file__).resolve().parents[1] / "docs" / "study" / "events.csv"
-        if not _path.is_file():
+        browser_base = None
+        data_root = Path(__file__).resolve().parents[1]
+        _path = Path("data/single_worker/events.csv")
+        if not (data_root / _path).is_file():
             _path = _path.with_suffix(".csv.gz")
-        default_csv = os.environ.get("TEEREX_TIMELINE_CSV", str(_path))
+        default_csv = relative_data_path(os.environ.get("TEEREX_TIMELINE_CSV", str(_path)), data_root)
     group_specs = [
         dict(label="pfRICH · 10 primaries", geometry="pfrich", primaries=10),
         dict(label="pfRICH · 100 primaries", geometry="pfrich", primaries=100),
@@ -49,16 +47,17 @@ async def _():
              primaries=100, kinetic_mev=1.0),
     ]
     return (
-        Path, default_csv, go, group_specs, make_subplots, mo, pd, read_one_csv,
+        browser_base, data_root, default_csv, go, group_specs, make_subplots, mo, pd,
+        read_one_csv, resolve_data_file,
     )
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
-    # Measured CPU/GPU timelines
+    mo.md("""
+    # Geant4 CPU/GPU timelines: single worker
 
-    The bundled dataset covers seven electron workloads from blocking runs.
+    This view covers seven electron workloads from the bundled blocking runs.
     Four CPU-dominated RICH workloads use pfRICH or dRICH, with 10 or 100
     primary electrons per event at **20 GeV/c** per primary. The three
     liquid-argon workloads span one balanced and two GPU-dominated
@@ -87,25 +86,22 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
-def _(default_csv, mo):
+def _(browser_base, default_csv, mo):
     csv_path = mo.ui.text(
-        value=default_csv, label="Production event CSV", full_width=True,
+        value=default_csv, label="Event CSV", full_width=True,
     )
-    csv_path
+    mo.vstack([
+        csv_path,
+        mo.md("Paths are relative to this notebook's web address." if browser_base else
+              "Paths are relative to the project folder."),
+    ])
     return (csv_path,)
 
 
 @app.cell(hide_code=True)
-def _(Path, csv_path, mo, read_one_csv):
-    _source = Path(csv_path.value).expanduser()
-    mo.stop(
-        not _source.is_file(),
-        mo.callout(
-            "Enter a path to the bundled events.csv or another ratio-study-v3 CSV.",
-            kind="warn",
-        ),
-    )
+async def load_data(browser_base, csv_path, data_root, mo, read_one_csv, resolve_data_file):
     try:
+        _source = await resolve_data_file(csv_path.value, root=data_root, browser_base=browser_base)
         production_events = read_one_csv(_source)
         _required = {
             "geometry_name", "particle", "momentum_gev_c", "multiplicity",
@@ -121,7 +117,7 @@ def _(Path, csv_path, mo, read_one_csv):
             raise ValueError("Missing measurement columns: " + ", ".join(_missing))
         if production_events.duplicated(["run_id", "event_id"]).any():
             raise ValueError("The CSV contains duplicate run/event identifiers.")
-    except (OSError, ValueError) as _error:
+    except (OSError, ValueError, RuntimeError) as _error:
         mo.stop(True, mo.callout(str(_error), kind="warn"))
     return (production_events,)
 
@@ -130,38 +126,35 @@ def _(Path, csv_path, mo, read_one_csv):
 def _(group_specs, mo, pd, production_events):
     configuration_frames = {}
     _summary_rows = []
-    _has_muons = production_events.particle.eq("mu-").any()
+    _electron_events = production_events.loc[production_events.particle.eq("e-")]
     for _spec in group_specs:
-        _particles = ["e-", "mu-"] if _has_muons and _spec["geometry"] != "argon" else ["e-"]
-        for _particle in _particles:
-            _mask = (
-                production_events.geometry_name.eq(_spec["geometry"])
-                & production_events.multiplicity.eq(_spec["primaries"])
-                & production_events.particle.eq(_particle)
-            )
-            if _spec["geometry"] == "argon":
-                _mask &= production_events.kinetic_energy_mev.eq(_spec["kinetic_mev"])
-            else:
-                _mask &= production_events.momentum_gev_c.eq(20)
-            _frame = production_events.loc[_mask].copy()
-            mo.stop(
-                _frame.empty,
-                mo.callout(f"Missing configuration: {_spec['label']} ({_particle}).", kind="warn"),
-            )
-            configuration_frames[(_spec["label"], _particle)] = _frame
-            _cpu = _frame.cpu_pre_runtime_s + _frame.cpu_post_runtime_s
-            _gpu = _frame.gpu_runtime_s
-            _summary_rows.append({
-                "Workload": _spec["label"],
-                "Particle": "μ−" if _particle == "mu-" else "e−",
-                "Events": len(_frame),
-                "Seed pairs": _frame.replication.nunique(),
-                "Mean photons/event": round(_frame.num_photons.mean()),
-                "Median CPU (ms)": _cpu.median() * 1000,
-                "Median GPU (ms)": _gpu.median() * 1000,
-                "Median CPU:GPU": (_cpu / _gpu).median(),
-                "Median GPU share (%)": (_gpu / (_cpu + _gpu)).median() * 100,
-            })
+        _mask = (
+            _electron_events.geometry_name.eq(_spec["geometry"])
+            & _electron_events.multiplicity.eq(_spec["primaries"])
+        )
+        if _spec["geometry"] == "argon":
+            _mask &= _electron_events.kinetic_energy_mev.eq(_spec["kinetic_mev"])
+        else:
+            _mask &= _electron_events.momentum_gev_c.eq(20)
+        _frame = _electron_events.loc[_mask].copy()
+        mo.stop(
+            _frame.empty,
+            mo.callout(f"Missing configuration: {_spec['label']} (e-).", kind="warn"),
+        )
+        configuration_frames[(_spec["label"], "e-")] = _frame
+        _cpu = _frame.cpu_pre_runtime_s + _frame.cpu_post_runtime_s
+        _gpu = _frame.gpu_runtime_s
+        _summary_rows.append({
+            "Workload": _spec["label"],
+            "Particle": "e−",
+            "Events": len(_frame),
+            "Seed pairs": _frame.replication.nunique(),
+            "Mean photons/event": round(_frame.num_photons.mean()),
+            "Median CPU (ms)": _cpu.median() * 1000,
+            "Median GPU (ms)": _gpu.median() * 1000,
+            "Median CPU:GPU": (_cpu / _gpu).median(),
+            "Median GPU share (%)": (_gpu / (_cpu + _gpu)).median() * 100,
+        })
     configuration_summary = pd.DataFrame(_summary_rows)
     available_seeds = sorted(set.intersection(*[
         set(int(rep) for rep in frame.replication.unique())

@@ -1,0 +1,39 @@
+{
+  "workload": "DUNE mock, 100 electrons per event, 1 MeV kinetic energy each",
+  "threads": 4,
+  "events": 12,
+  "included_events": "all 12 optical launches",
+  "simg4ox_pid": 705947,
+  "process_count_with_cuda_kernels": 1,
+  "captured_cuda_kernel_records": 162,
+  "analyzed_optical_kernel_records": 12,
+  "physical_gpu_count_with_cuda_kernels": 2,
+  "kernel_selection": "CUDA activity correlated to APIs enclosed by optixLaunch NVTX ranges in the same simg4ox thread and process. Each range maps to one kernel.",
+  "first_kernel_start_ns": 1195281401,
+  "last_kernel_end_ns": 3008143546,
+  "kernel_window_seconds": 1.812862145,
+  "simultaneous_kernel_seconds": 1.575635295,
+  "overlap_fraction_of_kernel_window": 0.8691423665862911,
+  "devices": [
+    {
+      "cuda_ordinal": 0,
+      "physical_device": 0,
+      "uuid": "GPU-3f53fc58-1093-aa54-47f7-524d97949ca8",
+      "context_id": 1,
+      "events": 6,
+      "kernel_seconds": 1.69715584
+    },
+    {
+      "cuda_ordinal": 1,
+      "physical_device": 1,
+      "uuid": "GPU-c35b61a7-54f8-ce97-2e16-865d2f9cda3f",
+      "context_id": 2,
+      "events": 6,
+      "kernel_seconds": 1.651350491
+    }
+  ],
+  "shared_host": "GPU 0 had an external compute process at campaign preflight. The pre-profile snapshot lists no compute apps.",
+  "pre_profile_compute_apps": [],
+  "process_scope": "Only the profiled simg4ox process contributed GPU kernels.",
+  "profiled_timing": "Separate capture, excluded from throughput estimates."
+}

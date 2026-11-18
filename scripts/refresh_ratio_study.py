@@ -17,7 +17,7 @@ from teerex import study
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DESTINATION = ROOT / "docs" / "study"
+DESTINATION = ROOT / "data" / "single_worker"
 COHORTS = ("drich", "pfrich", "balanced", "gpu_heavy_n10", "gpu_heavy_n100")
 WORKERS = (1, 2, 4, 8, 16, 20)
 INFLIGHT = (1, 2, 4, 8, 16, 32, 64)

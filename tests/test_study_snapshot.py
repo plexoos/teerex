@@ -12,7 +12,7 @@ import pytest
 from scripts import refresh_ratio_study as snapshot
 
 
-EVIDENCE = Path(__file__).resolve().parents[1] / "docs" / "study"
+EVIDENCE = Path(__file__).resolve().parents[1] / "data" / "single_worker"
 
 
 def test_production_csv_keeps_all_geometries_and_original_clocks(tmp_path):

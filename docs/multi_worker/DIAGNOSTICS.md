@@ -46,4 +46,4 @@ The repeat serial rate is 55.108 events/s, compared with 15.013 originally; eigh
 
 The primary dataset is unchanged. The other three primary dRICH 10-primary seeds have 8/serial ratios of 6.410, 6.477, and 6.933. The affected seed remains visible in every primary table and plot. A clean repeat neither invalidates the original observation nor establishes its cause.
 
-[Flagged event records](slow-cleanup.csv) · [Primary telemetry](telemetry.csv) · [Confirmation metrics](confirmation-summary.csv) · [Confirmation telemetry](confirmation-telemetry.csv) · [Confirmation verification](confirmation-verification.json)
+[Flagged event records](../../data/multi_worker/slow-cleanup.csv) · [Primary telemetry](../../data/multi_worker/telemetry.csv) · [Confirmation metrics](../../data/multi_worker/confirmation-summary.csv) · [Confirmation telemetry](../../data/multi_worker/confirmation-telemetry.csv) · [Confirmation verification](../../data/multi_worker/confirmation-verification.json)

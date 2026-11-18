@@ -5,11 +5,11 @@
 import marimo
 
 __generated_with = '0.25.2'
-app = marimo.App(width='full', app_title='Measured multithreaded Geant4 timelines')
+app = marimo.App(width='full', app_title='Geant4 CPU/GPU timelines: multiple workers')
 
 
 @app.cell(hide_code=True)
-async def _():
+def _():
     import os
     import sys
     from pathlib import Path
@@ -18,39 +18,39 @@ async def _():
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
     from teerex.analysis import read_one_csv
+    from teerex.notebook_data import relative_data_path, resolve_data_file
     if sys.platform == 'emscripten':
-        from pyodide.http import pyfetch
-
-        directory = Path('/tmp/teerex-mt-study')
-        directory.mkdir(exist_ok=True)
-        for _filename in ('events-raw.csv.gz', 'run-summary.csv', 'summary.csv', 'sensitivity.csv'):
-            _response = await pyfetch(str(mo.notebook_location() / 'public' / _filename))
-            if not _response.ok:
-                raise RuntimeError(f'Could not load MT evidence {_filename}: HTTP {_response.status}')
-            (directory / _filename).write_bytes(await _response.bytes())
+        browser_base = str(mo.notebook_location())
+        data_root = Path('/tmp/teerex-timeline-inputs')
+        _directory = Path('public')
     else:
-        root = Path(__file__).resolve().parents[1]
-        directory = Path(os.environ.get('TEEREX_MT_DATA_DIR', str(root/'docs/mt-study'))).expanduser()
+        browser_base = None
+        data_root = Path(__file__).resolve().parents[1]
+        _directory = Path(relative_data_path(os.environ.get('TEEREX_MT_DATA_DIR', 'data/multi_worker'), data_root))
+    default_paths = {name: str(_directory / name) for name in (
+        'events-raw.csv.gz', 'run-summary.csv', 'summary.csv', 'sensitivity.csv',
+    )}
     labels = {
         'pfRICH · 10 primaries':'pfrich_n10', 'pfRICH · 100 primaries':'pfrich_n100',
         'dRICH · 10 primaries':'drich_n10', 'dRICH · 100 primaries':'drich_n100',
         'DUNE mock · balanced':'argon_balanced', 'DUNE mock · 10 × 10 MeV':'argon_gpu_n10',
         'DUNE mock · 100 × 1 MeV':'argon_gpu_n100',
     }
-    return directory, go, labels, make_subplots, mo, pd, read_one_csv
+    return browser_base, data_root, default_paths, go, labels, make_subplots, mo, pd, read_one_csv, resolve_data_file
 
 
 @app.cell(hide_code=True)
-def _(directory, mo, read_one_csv, pd):
+async def load_data(browser_base, csv_path, data_root, mo, pd, read_one_csv, resolve_data_file,
+                    run_summary_path, sensitivity_path, summary_path):
     try:
-        events = read_one_csv(directory/'events-raw.csv.gz')
-        runs = pd.read_csv(directory/'run-summary.csv')
-        summary = pd.read_csv(directory/'summary.csv')
-        sensitivity = pd.read_csv(directory/'sensitivity.csv')
-    except (OSError, ValueError) as _error:
+        events = read_one_csv(await resolve_data_file(csv_path.value, root=data_root, browser_base=browser_base))
+        runs = pd.read_csv(await resolve_data_file(run_summary_path.value, root=data_root, browser_base=browser_base))
+        summary = pd.read_csv(await resolve_data_file(summary_path.value, root=data_root, browser_base=browser_base))
+        sensitivity = pd.read_csv(await resolve_data_file(sensitivity_path.value, root=data_root, browser_base=browser_base))
+    except (OSError, ValueError, RuntimeError) as _error:
         mo.stop(True, mo.callout(
             f'Cannot load the MT evidence bundle: {_error}. '
-            'Set TEEREX_MT_DATA_DIR to a compatible bundle directory (see docs/mt-study/README.md).',
+            'Choose files from one compatible measurement bundle.',
             kind='warn'))
     return events, runs, sensitivity, summary
 
@@ -58,7 +58,7 @@ def _(directory, mo, read_one_csv, pd):
 @app.cell(hide_code=True)
 def _(events, mo, runs):
     mo.md(f'''
-    # Measured multithreaded Geant4 CPU/GPU timelines
+    # Geant4 CPU/GPU timelines: multiple workers
 
     **Measured dataset:** {len(runs)} process runs, {len(events):,} raw events,
     {int(runs.analysis_events.sum()):,} retained events, and {runs.replication.nunique()} seed pairs.
@@ -77,6 +77,20 @@ def _(events, mo, runs):
     Host service includes staging, transfers, and synchronization; its occupancy is not GPU SM utilization.
     ''')
     return
+
+
+@app.cell(hide_code=True)
+def _(browser_base, default_paths, mo):
+    csv_path = mo.ui.text(value=default_paths['events-raw.csv.gz'], label='Event CSV', full_width=True)
+    run_summary_path = mo.ui.text(value=default_paths['run-summary.csv'], label='Run summary CSV', full_width=True)
+    summary_path = mo.ui.text(value=default_paths['summary.csv'], label='Summary CSV', full_width=True)
+    sensitivity_path = mo.ui.text(value=default_paths['sensitivity.csv'], label='Sensitivity CSV', full_width=True)
+    mo.vstack([
+        csv_path, run_summary_path, summary_path, sensitivity_path,
+        mo.md(("Paths are relative to this notebook's web address. " if browser_base else
+               'Paths are relative to the project folder. ') + 'Use files from the same measurement bundle.'),
+    ])
+    return csv_path, run_summary_path, sensitivity_path, summary_path
 
 
 @app.cell(hide_code=True)

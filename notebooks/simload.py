@@ -37,7 +37,7 @@ async def _():
         with zipfile.ZipFile(io.BytesIO(await _response.bytes())) as _archive:
             _archive.extractall(evidence_dir)
     else:
-        evidence_dir = Path(__file__).resolve().parents[1] / "docs" / "study"
+        evidence_dir = Path(__file__).resolve().parents[1] / "data" / "single_worker"
     phase_columns = ["cpu_pre_runtime_s", "gpu_runtime_s",
                      "cpu_post_locked_runtime_s", "cpu_post_unlocked_runtime_s"]
     phase_names = ["CPU generation", "GPU host service", "Gate-held cleanup", "Remaining CPU"]
@@ -635,7 +635,7 @@ def _(manifest, mo, trace_checks):
     uv run marimo edit notebooks/simload.py
     ```
 
-    `docs/study/README.md` describes the artifact files and exact split rules.
+    `docs/single_worker/README.md` describes the artifact files and exact split rules.
     `docs/bayesian-dispatch.md` defines the model and scheduler.
     `docs/simload.md` documents the original synthetic workload and its CUDA
     requirements. This analysis notebook needs neither CUDA nor the raw archive.

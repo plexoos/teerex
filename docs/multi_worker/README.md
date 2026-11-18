@@ -1,6 +1,6 @@
 # Measured multithreaded Geant4 evidence
 
-This portable snapshot accompanies [mt_timelines.py](../../notebooks/mt_timelines.py).
+This portable snapshot accompanies [timelines_multi_worker.py](../../notebooks/timelines_multi_worker.py).
 It preserves the completed `charged-mt-study-v1` campaign's exported CSV bytes,
 including every warm-up event and timing tail. No slow events are removed.
 Read the [findings and scaling plots](FINDINGS.md) for the results, and the
@@ -23,6 +23,9 @@ The manifest records the exact commits, device, coverage, and file hashes.
 
 ## Files and reuse
 
+The bundle is stored in [`data/multi_worker/`](../../data/multi_worker/).
+All filenames below are relative to that directory, including the preserved figures.
+
 - `events-raw.csv.gz`: all measured rows and columns, with original run-local
   offsets, event/worker identifiers, counts, seeds, and the `is_warmup` flag.
 - `run-summary.csv`: 112 per-process summaries, including completion and batch
@@ -44,27 +47,31 @@ The manifest records the exact commits, device, coverage, and file hashes.
 From the repository root:
 
 ```bash
-PYTHONPATH=. uv run --with plotly marimo edit notebooks/mt_timelines.py
-PYTHONPATH=. uv run --with plotly marimo export html notebooks/mt_timelines.py \
-  -o /tmp/mt_timelines.html
+uv run marimo edit notebooks/timelines_multi_worker.py
+uv run marimo export html notebooks/timelines_multi_worker.py \
+  -o /tmp/timelines_multi_worker.html
 uv run pytest tests/test_mt_timeline_snapshot.py tests/test_timeline_analysis.py
 ```
 
-The notebook reads `docs/mt-study` relative to its repository. Set
-`TEEREX_MT_DATA_DIR=/path/to/bundle` to use another compatible export containing
+The notebook's editable inputs default to `data/multi_worker/...`, relative to its
+repository, or `public/...` in the browser version. Change the event, run-summary,
+summary, and sensitivity paths to load another compatible export. Set
+`TEEREX_MT_DATA_DIR=/path/to/bundle` to initialize all four inputs from a directory containing
 `events-raw.csv.gz`, `run-summary.csv`, `summary.csv`, and `sensitivity.csv`.
 The current notebook expects the same seven workload keys, worker grid, zero-based
 seed indices 0–3, and 16-event warm-up convention. Preserve separate `run_id` and
 `scenario` values for independent process clocks. Recompute all summary tables
 when replacing raw measurements; do not combine fresh events with stale summaries.
+Press Enter or leave an input to apply its path. Browser paths resolve relative
+to the notebook page and must identify web-accessible files.
 The notebook displays the saved scaling analysis rather than regenerating those
 tables. A configuration summary above the plots lists all 28 workload/worker
 settings, pooling all four seed pairs per row. It shows raw and retained event
 counts plus retained-event photon and CPU/GPU timing statistics, matching the
-overview in `ratio_timelines.py`. Timeline controls do not filter this table.
+overview in `timelines_single_worker.py`. Timeline controls do not filter this table.
 
 Timeline plots contain all 516 recorded events, from event 0 through the final
-cleanup, including the 16 warm-up events. Like `ratio_timelines.py`, each worker
+cleanup, including the 16 warm-up events. Like `timelines_single_worker.py`, each worker
 count has its own plot with a range slider and opens on the first 10 events.
 Use the slider to select an early or later time window, or expand to the full
 run; drag to pan, use the toolbar to zoom, and hover for exact event timing.
@@ -74,7 +81,7 @@ Scaling summaries and duration distributions continue to use the 500 retained
 events per run.
 
 The `marimo export html` output is a snapshot; changing notebook controls requires
-running Marimo. The [GitHub Pages version](https://plexoos.github.io/teerex/mt_timelines/)
+running Marimo. The [GitHub Pages version](https://plexoos.github.io/teerex/timelines_multi_worker/)
 runs interactively in the browser using WebAssembly, with the four required CSV
 files included in the site export. It does not require a local Marimo server.
 

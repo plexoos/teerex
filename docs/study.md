@@ -3,7 +3,7 @@
 The [main notebook](../notebooks/simload.py) now analyzes the supplied
 `teerex-study/ratio-study-v3/all-production-events.csv`: 22,000 retained events,
 44 independent processes, 11 source conditions, four replications/condition,
-and 500 retained events/process. The [portable evidence](study/README.md)
+and 500 retained events/process. The [portable evidence](single_worker/README.md)
 contains the complete CSV and rebuilt predictions, policy searches, and provenance.
 This replaces the notebook's earlier dRICH-only fit and short argon pilots.
 
@@ -105,5 +105,5 @@ photon aggregation require their own measurements, memory limits, and latency
 budgets. No aggregation cost model is inferred from this CSV.
 
 See the [model reference](bayesian-dispatch.md) for equations and scheduler rules,
-the [evidence guide](study/README.md) for rebuild commands and SHA256 checks, and
+the [evidence guide](single_worker/README.md) for rebuild commands and SHA256 checks, and
 [Simload documentation](simload.md) for the original synthetic CUDA experiment.

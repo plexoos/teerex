@@ -246,8 +246,8 @@ Every invocation creates a fresh `analysis-<timestamp>` under `datasets/`, `mode
 held-out predictions and metrics, observed and posterior policy comparisons,
 sensitivities, a frozen policy, model parameters, standalone plots, and a report.
 
-The [portable evidence](study/README.md) supports the notebook and replay. Its
+The [portable evidence](single_worker/README.md) supports the notebook and replay. Its
 combined CSV is accepted by `scripts/refresh_ratio_study.py`, which validates
 timing identities, seeds, and replication splits and overwrites derived evidence
-in `docs/study/`. It is not a full run archive accepted by the `study --root`
+in `data/single_worker/`. It is not a full run archive accepted by the `study --root`
 CLI; that workflow still requires the original run tree and its metadata.
